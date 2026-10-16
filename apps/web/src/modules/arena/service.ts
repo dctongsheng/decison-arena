@@ -5,6 +5,9 @@ import type {
   ModelProfile,
   ReplayManifest,
   SeatConfig,
+  ArcadeReplayV2,
+  ArcadeSession,
+  CreateArcadeInput,
 } from '@decision-arena/core';
 import {
   decryptSecret,
@@ -25,7 +28,7 @@ import {
 } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { publicReplay } from '@/core/arena/public-replay';
+import { publicReplay, type PublicReplay } from '@/core/arena/public-replay';
 import {
   arenaBindings,
   ArenaError,
@@ -39,6 +42,8 @@ import {
   credentialInput,
   profileInput,
   publicationInput,
+  createArcadeInput,
+  arcadeCommandInput,
 } from '@/core/arena/validation';
 import { matchPermission, RoleStatus } from '@/core/auth/rbac';
 import { db } from '@/core/db';
@@ -426,7 +431,7 @@ export async function listMatches(ownerId: string) {
   const rows = await db()
     .select()
     .from(arenaMatch)
-    .where(eq(arenaMatch.ownerId, ownerId))
+    .where(and(eq(arenaMatch.ownerId, ownerId), inArray(arenaMatch.gameId, ['gomoku', 'xiangqi', 'army'])))
     .orderBy(desc(arenaMatch.updatedAt))
     .limit(100);
   return {
@@ -451,6 +456,7 @@ export async function createMatch(ownerId: string, input: unknown) {
   const source = sourcePost
     ? await readPublicationReplay(sourcePost)
     : undefined;
+  if (source && source.version !== 1) throw new ArenaError('Use the arcade creator for this replay.');
   const seats: SeatConfig[] = [];
   for (const [index, seat] of data.seats.entries()) {
     const sourceSeat = source?.seats[index];
@@ -513,6 +519,61 @@ export async function getReplay(ownerId: string, id: string) {
   return runnerJson<ReplayManifest>(ownerId, `/matches/${id}/replay`);
 }
 
+export async function listArcadeSessions(ownerId: string) {
+  const rows = await db().select().from(arenaMatch)
+    .where(and(eq(arenaMatch.ownerId, ownerId), inArray(arenaMatch.gameId, ['snake', 'tetris', 'platformer'])))
+    .orderBy(desc(arenaMatch.updatedAt)).limit(100);
+  return { items: rows.map((row: typeof arenaMatch.$inferSelect) => ({ ...JSON.parse(row.summaryJson), id: row.id,
+    engineKind: 'arcade', gameId: row.gameId, status: row.status, createdAt: row.createdAt,
+    updatedAt: row.updatedAt, result: row.resultJson ? JSON.parse(row.resultJson) : undefined })) };
+}
+
+export async function createArcadeSession(ownerId: string, input: unknown) {
+  const data = createArcadeInput.parse(input);
+  const sourcePost = data.cloneId ? await publication(data.cloneId) : undefined;
+  const source = sourcePost ? await readPublicationReplay(sourcePost) : undefined;
+  if (source && source.version !== 2) throw new ArenaError('Use the chess creator for this replay.');
+  if (source && (source.mode !== data.mode || source.controllers.length !== data.controllers.length))
+    throw new ArenaError('Cloned challenges must keep the original controller types.');
+  const controllers: SeatConfig[] = [];
+  for (const [index, controller] of data.controllers.entries()) {
+    const original = source?.controllers[index];
+    if (original && original.kind !== controller.kind)
+      throw new ArenaError('Cloned challenges must keep the original controller types.');
+    if (controller.kind === 'human') { controllers.push({ kind: 'human' }); continue; }
+    const selected = runnerProfile(await ownProfile(ownerId, controller.profileId!));
+    if (original) {
+      if (!original.profile || original.profile.provider !== selected.provider)
+        throw new ArenaError('Choose your own credentials for the original provider.');
+      // Only public model parameters are copied. The endpoint/key remain this owner's.
+      selected.name = original.profile.name;
+      selected.model = original.profile.model;
+    }
+    // Realtime controls always disable thinking, including cloned older challenges.
+    // This is a per-session copy; the saved profile still serves chess unchanged.
+    selected.thinkMode = 'never';
+    controllers.push({ kind: 'ai', profile: selected });
+  }
+  if (sourcePost && (await publication(sourcePost.id)).status !== 'published')
+    throw new ArenaError('Community replay not found.', 404);
+  const payload: CreateArcadeInput = { gameId: source?.gameId ?? data.gameId,
+    mode: source?.mode ?? data.mode, config: source?.config ?? data.config,
+    seed: source?.seed ?? data.seed, controllers };
+  return runnerJson<ArcadeSession>(ownerId, '/arcade-sessions', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function getArcadeSession(ownerId: string, id: string, query = '') {
+  return runnerJson<ArcadeSession>(ownerId, `/arcade-sessions/${id}${query}`);
+}
+export async function commandArcadeSession(ownerId: string, id: string, input: unknown) {
+  return runnerJson<ArcadeSession>(ownerId, `/arcade-sessions/${id}/commands`, {
+    method: 'POST', body: JSON.stringify(arcadeCommandInput.parse(input)),
+  });
+}
+export async function getArcadeReplay(ownerId: string, id: string) {
+  return runnerJson<ArcadeReplayV2>(ownerId, `/arcade-sessions/${id}/replay`);
+}
+
 async function publication(id: string): Promise<ArenaPublication> {
   const [post] = await db()
     .select()
@@ -525,7 +586,7 @@ async function publication(id: string): Promise<ArenaPublication> {
 
 async function readPublicationReplay(
   post: ArenaPublication
-): Promise<ReplayManifest> {
+): Promise<PublicReplay> {
   if (post.status !== 'published')
     throw new ArenaError('Community replay not found.', 404);
   let serialized = post.replayJson;
@@ -598,6 +659,9 @@ async function publicationCards(posts: ArenaPublication[], viewerId?: string) {
       commentCount: commentCounts.get(post.id) || 0,
       result: summary.result,
       seats: summary.seats,
+      engineKind: summary.engineKind ?? 'chess',
+      controllers: summary.controllers,
+      mode: summary.mode,
       liked: likedIds.has(post.id),
       canManage: viewerId === post.ownerId,
     };
@@ -685,7 +749,8 @@ export async function publishReplay(ownerId: string, input: unknown) {
     .limit(1);
   if (existing?.status === 'removed')
     throw new ArenaError('This replay was removed by a moderator.', 403);
-  const replay = publicReplay(await getReplay(ownerId, data.matchId));
+  const isArcade = JSON.parse(match.summaryJson).engineKind === 'arcade';
+  const replay = publicReplay(await (isArcade ? getArcadeReplay(ownerId, data.matchId) : getReplay(ownerId, data.matchId)));
   if (replay.matchId !== data.matchId)
     throw new ArenaError('Replay identity does not match.', 502);
   const serialized = JSON.stringify(replay);
@@ -707,7 +772,9 @@ export async function publishReplay(ownerId: string, input: unknown) {
     status: 'published',
     replayKey,
     replayJson: bucket ? null : serialized,
-    summaryJson: JSON.stringify({ result: replay.result, seats: replay.seats }),
+    summaryJson: JSON.stringify(replay.version === 2
+      ? { engineKind: 'arcade', mode: replay.mode, result: replay.result, seats: replay.controllers, controllers: replay.controllers }
+      : { result: replay.result, seats: replay.seats }),
     updatedAt: now,
   };
   if (existing)

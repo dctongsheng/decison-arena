@@ -1,0 +1,428 @@
+{
+  "date": "2026-10-16",
+  "environment": "local",
+  "purpose": "Limited connectivity and applied-tick acceptance, not a model ranking",
+  "sessions": [
+    {
+      "gameId": "snake",
+      "mode": "ai-ai",
+      "rulesVersion": "snake-realtime-v1",
+      "controllers": [
+        {
+          "kind": "ai",
+          "provider": "openrouter",
+          "requestedModel": "typesafe/jev-1.13",
+          "thinkMode": "never",
+          "thinkBudget": 1024
+        },
+        {
+          "kind": "ai",
+          "provider": "systemone",
+          "requestedModel": "",
+          "thinkMode": "always",
+          "thinkBudget": 4096
+        }
+      ],
+      "result": {
+        "winner": 0,
+        "reason": "runs_finished",
+        "scores": [
+          {
+            "points": 0,
+            "food": 0,
+            "survivedTicks": 190,
+            "completed": false
+          },
+          {
+            "points": 0,
+            "food": 0,
+            "survivedTicks": 160,
+            "completed": false
+          }
+        ],
+        "aborted": false
+      },
+      "decisions": [
+        {
+          "runId": "run-0",
+          "observedTick": 3,
+          "appliedTick": 98,
+          "actionId": "down:100",
+          "outcome": "applied",
+          "elapsedMs": 1564,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 821,
+            "output_tokens": 91,
+            "cost": 0.000034482
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 98,
+          "appliedTick": 152,
+          "actionId": "down:100",
+          "outcome": "applied",
+          "elapsedMs": 876,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 863,
+            "output_tokens": 91,
+            "cost": 0.000036246
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 153,
+          "actionId": "down:100",
+          "outcome": "dropped",
+          "elapsedMs": 813,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 902,
+            "output_tokens": 91,
+            "cost": 0.000037884
+          }
+        },
+        {
+          "runId": "run-1",
+          "observedTick": 3,
+          "actionId": "down:1000",
+          "outcome": "dropped",
+          "elapsedMs": 6820,
+          "actualModel": "startlux-decision-27b-autothink",
+          "thoughtUsed": true,
+          "usage": {
+            "input_tokens": 463,
+            "output_tokens": 473
+          }
+        }
+      ]
+    },
+    {
+      "gameId": "tetris",
+      "mode": "ai-ai",
+      "rulesVersion": "tetris-realtime-v1",
+      "controllers": [
+        {
+          "kind": "ai",
+          "provider": "openrouter",
+          "requestedModel": "typesafe/jev-1.13",
+          "thinkMode": "never",
+          "thinkBudget": 1024
+        },
+        {
+          "kind": "ai",
+          "provider": "systemone",
+          "requestedModel": "",
+          "thinkMode": "always",
+          "thinkBudget": 4096
+        }
+      ],
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user",
+        "scores": [
+          {
+            "points": 0,
+            "lines": 0,
+            "survivedTicks": 207
+          },
+          {
+            "points": 0,
+            "lines": 0,
+            "survivedTicks": 207
+          }
+        ],
+        "aborted": true
+      },
+      "decisions": [
+        {
+          "runId": "run-0",
+          "observedTick": 3,
+          "appliedTick": 52,
+          "actionId": "hard-drop:100",
+          "outcome": "applied",
+          "elapsedMs": 805,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1913,
+            "output_tokens": 226,
+            "cost": 0.000080346
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 52,
+          "appliedTick": 101,
+          "actionId": "noop:100",
+          "outcome": "applied",
+          "elapsedMs": 800,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1956,
+            "output_tokens": 225,
+            "cost": 0.000082152
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 100,
+          "appliedTick": 151,
+          "actionId": "noop:100",
+          "outcome": "applied",
+          "elapsedMs": 827,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1986,
+            "output_tokens": 225,
+            "cost": 0.000083412
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 151,
+          "appliedTick": 204,
+          "actionId": "noop:100",
+          "outcome": "applied",
+          "elapsedMs": 852,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 2017,
+            "output_tokens": 225,
+            "cost": 0.000084714
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 203,
+          "actionId": "noop:100",
+          "outcome": "dropped",
+          "elapsedMs": 847,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 2050,
+            "output_tokens": 225,
+            "cost": 0.0000861
+          }
+        },
+        {
+          "runId": "run-1",
+          "observedTick": 3,
+          "actionId": "hard-drop:100",
+          "outcome": "dropped",
+          "elapsedMs": 12671,
+          "actualModel": "startlux-decision-27b-autothink",
+          "thoughtUsed": true,
+          "usage": {
+            "input_tokens": 4119,
+            "output_tokens": 1084
+          }
+        }
+      ]
+    },
+    {
+      "gameId": "platformer",
+      "mode": "ai-ai",
+      "rulesVersion": "platformer-realtime-v1",
+      "controllers": [
+        {
+          "kind": "ai",
+          "provider": "openrouter",
+          "requestedModel": "typesafe/jev-1.13",
+          "thinkMode": "never",
+          "thinkBudget": 1024
+        },
+        {
+          "kind": "ai",
+          "provider": "systemone",
+          "requestedModel": "",
+          "thinkMode": "always",
+          "thinkBudget": 4096
+        }
+      ],
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user",
+        "scores": [
+          {
+            "points": 38,
+            "coins": 0,
+            "progress": 3.86,
+            "completed": false,
+            "survivedTicks": 215
+          },
+          {
+            "points": 71,
+            "coins": 0,
+            "progress": 7.16,
+            "completed": false,
+            "survivedTicks": 215
+          }
+        ],
+        "aborted": true
+      },
+      "decisions": [
+        {
+          "runId": "run-0",
+          "observedTick": 3,
+          "appliedTick": 67,
+          "actionId": "right:100",
+          "outcome": "applied",
+          "elapsedMs": 1059,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1488,
+            "output_tokens": 171,
+            "cost": 0.000062496
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 67,
+          "appliedTick": 113,
+          "actionId": "right:100",
+          "outcome": "applied",
+          "elapsedMs": 758,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1538,
+            "output_tokens": 171,
+            "cost": 0.000064596
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 112,
+          "appliedTick": 160,
+          "actionId": "right:100",
+          "outcome": "applied",
+          "elapsedMs": 767,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1575,
+            "output_tokens": 171,
+            "cost": 0.00006615
+          }
+        },
+        {
+          "runId": "run-1",
+          "observedTick": 3,
+          "appliedTick": 181,
+          "actionId": "right:1000",
+          "outcome": "applied",
+          "elapsedMs": 2946,
+          "actualModel": "startlux-decision-27b-autothink",
+          "thoughtUsed": true,
+          "usage": {
+            "input_tokens": 977,
+            "output_tokens": 234
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 161,
+          "appliedTick": 211,
+          "actionId": "right:100",
+          "outcome": "applied",
+          "elapsedMs": 809,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1614,
+            "output_tokens": 171,
+            "cost": 0.000067788
+          }
+        },
+        {
+          "runId": "run-0",
+          "observedTick": 210,
+          "actionId": "right:100",
+          "outcome": "dropped",
+          "elapsedMs": 932,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1649,
+            "output_tokens": 171,
+            "cost": 0.000069258
+          }
+        },
+        {
+          "runId": "run-1",
+          "observedTick": 180,
+          "actionId": "right:1000",
+          "outcome": "dropped",
+          "elapsedMs": 9302,
+          "actualModel": "startlux-decision-27b-autothink",
+          "thoughtUsed": true,
+          "usage": {
+            "input_tokens": 1016,
+            "output_tokens": 813
+          }
+        }
+      ]
+    },
+    {
+      "gameId": "tetris",
+      "mode": "human-ai",
+      "rulesVersion": "tetris-realtime-v1",
+      "controllers": [
+        {
+          "kind": "human"
+        },
+        {
+          "kind": "ai",
+          "provider": "systemone",
+          "requestedModel": "",
+          "thinkMode": "always",
+          "thinkBudget": 4096
+        }
+      ],
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user",
+        "scores": [
+          {
+            "points": 0,
+            "lines": 0,
+            "survivedTicks": 876
+          },
+          {
+            "points": 0,
+            "lines": 0,
+            "survivedTicks": 876
+          }
+        ],
+        "aborted": true
+      },
+      "decisions": [
+        {
+          "runId": "run-1",
+          "observedTick": 3,
+          "appliedTick": 872,
+          "actionId": "hard-drop:100",
+          "outcome": "applied",
+          "elapsedMs": 14470,
+          "actualModel": "startlux-decision-27b-autothink",
+          "thoughtUsed": true,
+          "usage": {
+            "input_tokens": 4119,
+            "output_tokens": 1209
+          }
+        },
+        {
+          "runId": "run-1",
+          "observedTick": 873,
+          "actionId": "hard-drop:100",
+          "outcome": "dropped",
+          "elapsedMs": 6873,
+          "actualModel": "startlux-decision-27b-autothink",
+          "thoughtUsed": true,
+          "usage": {
+            "input_tokens": 4157,
+            "output_tokens": 523
+          }
+        }
+      ]
+    }
+  ]
+}

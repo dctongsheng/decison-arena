@@ -9,6 +9,7 @@ import { nitro } from 'nitro/vite';
 import { defineConfig } from 'vite';
 
 import { loadEnvFiles } from './src/lib/env';
+import { arcadeWebSocketBridge } from './dev/arcade-websocket';
 
 // Populate process.env from .env.local / .env.{NODE_ENV} / .env for the
 // dev server and build process (Vite only exposes VITE_* via import.meta.env;
@@ -68,6 +69,7 @@ export default defineConfig({
       : {},
   },
   plugins: [
+    arcadeWebSocketBridge(),
     // MDX must run before the react plugin so JSX in compiled MDX gets transformed.
     { enforce: 'pre', ...mdx({ providerImportSource: '@mdx-js/react' }) },
     tailwindcss(),

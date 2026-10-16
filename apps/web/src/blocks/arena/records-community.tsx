@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { GameId, ReplayManifest } from '@decision-arena/core';
+import type {
+  ArcadeGameId,
+  ArcadeReplayV2,
+  ArcadeResult,
+  GameId,
+  PublicSeatConfig,
+  ReplayManifest,
+} from '@decision-arena/core';
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,7 +33,9 @@ import { z } from 'zod';
 import { useSession } from '@/core/auth/client';
 import { Link, useRouter } from '@/core/i18n/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
-import { GameArtwork } from '@/components/arena/board';
+import { ActivityArtwork as GameArtwork } from '@/blocks/arcade/activity-artwork';
+import { a } from '@/blocks/arcade/messages';
+import { ArcadeReplayPlayer } from '@/blocks/arcade/replay-player';
 import { Button } from '@/components/ui/button';
 
 import { ReplayPlayer } from './replay-player';
@@ -64,13 +73,39 @@ function HistoryContent() {
     queryKey: ['arena-matches', session?.user?.id],
     queryFn: () => apiGet<{ items: MatchItem[] }>('/api/arena/matches'),
   });
-  const items = query.data?.items.filter(
-    (item) =>
-      filter === 'all' ||
-      (filter === 'finished'
-        ? item.status === 'finished'
-        : item.status !== 'finished')
-  );
+  const arcade = useQuery({
+    queryKey: ['arena-arcade-sessions', session?.user?.id],
+    queryFn: () =>
+      apiGet<{
+        items: {
+          id: string;
+          gameId: ArcadeGameId;
+          status: string;
+          createdAt: string | number;
+          result?: ArcadeResult;
+          controllers: PublicSeatConfig[];
+          engineKind: 'arcade';
+        }[];
+      }>('/api/arena/arcade-sessions'),
+  });
+  const items = [
+    ...(query.data?.items || []),
+    ...(arcade.data?.items || []).map((item) => ({
+      ...item,
+      seats: item.controllers,
+    })),
+  ]
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    )
+    .filter(
+      (item) =>
+        filter === 'all' ||
+        (filter === 'finished'
+          ? item.status === 'finished'
+          : item.status !== 'finished')
+    );
   return (
     <>
       <PageHeading
@@ -92,12 +127,17 @@ function HistoryContent() {
             onClick={() => setFilter(value)}
           >
             {t(`history.${value}`)}
-            {value === 'all' && <span>{query.data?.items.length || 0}</span>}
+            {value === 'all' && (
+              <span>
+                {(query.data?.items.length || 0) +
+                  (arcade.data?.items.length || 0)}
+              </span>
+            )}
           </button>
         ))}
       </div>
-      <ErrorNotice error={query.error} />
-      {query.isPending ? (
+      <ErrorNotice error={query.error || arcade.error} />
+      {query.isPending || arcade.isPending ? (
         <Loading />
       ) : items?.length ? (
         <div className="arena-panel arena-records">
@@ -105,7 +145,7 @@ function HistoryContent() {
             <Link
               key={item.id}
               className="arena-record"
-              href={`/matches/${item.id}`}
+              href={`${'engineKind' in item && item.engineKind === 'arcade' ? '/arcade' : '/matches'}/${item.id}`}
             >
               <div className={`arena-record-art ${item.gameId}`}>
                 <GameArtwork gameId={item.gameId} />
@@ -169,13 +209,23 @@ export function CommunityPage() {
       />
       <div className="arena-community-toolbar">
         <div className="arena-tab-bar">
-          {['all', 'gomoku', 'xiangqi', 'army'].map((value) => (
+          {[
+            'all',
+            'gomoku',
+            'xiangqi',
+            'army',
+            'snake',
+            'tetris',
+            'platformer',
+          ].map((value) => (
             <button
               key={value}
               className={game === value ? 'active' : ''}
               onClick={() => setGame(value)}
             >
-              {value === 'all' ? t('community.all') : gameName(value as GameId)}
+              {value === 'all'
+                ? t('community.all')
+                : gameName(value as GameId | ArcadeGameId)}
             </button>
           ))}
         </div>
@@ -260,7 +310,7 @@ export function CommunityPage() {
 
 interface CommunityDetail {
   post: CommunityPost;
-  replay: ReplayManifest;
+  replay: ReplayManifest | ArcadeReplayV2;
   comments: {
     id: string;
     body: string;
@@ -342,14 +392,23 @@ export function CommunityDetailPage({ id }: { id: string }) {
                 <span>{t('community.public')}</span>
               </div>
             </div>
-            <Link href={`/new?clone=${id}`} className="arena-button">
+            <Link
+              href={`${data.replay.version === 2 ? '/arcade/new' : '/new'}?clone=${id}`}
+              className="arena-button"
+            >
               <Copy size={17} />
               {t('community.clone')}
             </Link>
           </div>
           <div className="arena-community-detail">
             <section className="arena-panel arena-replay-panel">
-              <ReplayPlayer replay={data.replay} />
+              <>
+                {data.replay.version === 2 ? (
+                  <ArcadeReplayPlayer replay={data.replay} />
+                ) : (
+                  <ReplayPlayer replay={data.replay} />
+                )}
+              </>
             </section>
             <aside className="arena-replay-side">
               <section className="arena-panel arena-replay-result">
@@ -360,7 +419,10 @@ export function CommunityDetailPage({ id }: { id: string }) {
                 <h2>{resultName(data.replay.result, data.replay.gameId)}</h2>
                 <p>{reasonName(data.replay.result.reason)}</p>
                 <div className="arena-replay-models">
-                  {data.replay.seats.map((seat, i) => (
+                  {(data.replay.version === 2
+                    ? data.replay.controllers
+                    : data.replay.seats
+                  ).map((seat, i) => (
                     <div key={i}>
                       <span>
                         {seat.kind === 'ai' ? (
@@ -378,8 +440,10 @@ export function CommunityDetailPage({ id }: { id: string }) {
                         </small>
                         {seat.profile?.thinkMode && (
                           <small>
-                            {t('room.thought')}:{' '}
-                            {t(`models.think_${seat.profile.thinkMode}`)}
+                            {data.replay.version === 2
+                              ? a('historical_thinking')
+                              : t('room.thought')}
+                            : {t(`models.think_${seat.profile.thinkMode}`)}
                           </small>
                         )}
                       </div>
@@ -387,8 +451,16 @@ export function CommunityDetailPage({ id }: { id: string }) {
                   ))}
                 </div>
                 <div className="arena-metric-line">
-                  <span>{t('room.plies')}</span>
-                  <strong>{data.replay.frames.at(-1)?.ply || 0}</strong>
+                  <span>
+                    {data.replay.version === 2
+                      ? a('game_time')
+                      : t('room.plies')}
+                  </span>
+                  <strong>
+                    {data.replay.version === 2
+                      ? `${((data.replay.frames.at(-1)?.tick || 0) / 60).toFixed(1)} s`
+                      : data.replay.frames.at(-1)?.ply || 0}
+                  </strong>
                 </div>
                 <div className="arena-metric-line">
                   <span>{t('replay.rules_version')}</span>
@@ -401,7 +473,11 @@ export function CommunityDetailPage({ id }: { id: string }) {
               </section>
               <div className="arena-note">
                 <ShieldCheck size={19} />
-                <p>{t('community.clone_note')}</p>
+                <p>
+                  {data.replay.version === 2
+                    ? a('clone_note')
+                    : t('community.clone_note')}
+                </p>
               </div>
             </aside>
           </div>

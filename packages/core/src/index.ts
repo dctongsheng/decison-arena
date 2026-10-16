@@ -47,3 +47,4 @@ export interface MatchCommand { type: 'action' | 'start' | 'step' | 'pause' | 'r
 export function publicProfile(p: ModelProfile): PublicModelProfile { return { name:p.name, provider:p.provider, model:p.model, ...(p.thinkMode ? {thinkMode:p.thinkMode}:{}), ...(p.thinkBudget ? {thinkBudget:p.thinkBudget}:{}) }; }
 export function publicSeats(seats: [SeatConfig, SeatConfig]): [PublicSeatConfig, PublicSeatConfig] { return seats.map(s => ({kind:s.kind, ...(s.profile ? {profile:publicProfile(s.profile)} : {})})) as [PublicSeatConfig, PublicSeatConfig]; }
 export function assertSeat(value: unknown): asserts value is Seat { if(value !== 0 && value !== 1) throw new Error('Invalid seat'); }
+export * from './arcade';

@@ -116,7 +116,7 @@ async function limitedJson(response: Response): Promise<unknown> {
   const bytes=new Uint8Array(size); let offset=0; for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
   try{return JSON.parse(new TextDecoder().decode(bytes));}catch{throw new Error('Provider returned invalid JSON');}
 }
-export async function decide(profile: ModelProfile, key: string, request: DecisionRequest, signal?: AbortSignal): Promise<DecisionResponse> {
+export async function decide(profile: ModelProfile, key: string, request: DecisionRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<DecisionResponse> {
   if(!request.actions.length || request.actions.length>1000) throw new Error('Invalid candidate count');
   if(!key || /[\r\n]/.test(key)) throw new Error('Invalid API key');
   if(profile.provider.startsWith('custom-') && !('WebSocketPair' in globalThis)) throw new Error('Custom providers must run through the Cloudflare match service');
@@ -129,6 +129,9 @@ export async function decide(profile: ModelProfile, key: string, request: Decisi
     payload.think_mode=profile.thinkMode??'always'; payload.think_budget=profile.thinkBudget??4096; payload.return_details=true;
     payload.return_thought=payload.think_mode!=='never';
   }
+  // DNS/credential preflight can outlive a realtime piece, run or control generation.
+  // Revalidate synchronously at the final send boundary; never retry the paid request here.
+  beforeSend?.();
   const started=Date.now();
   let response:Response;
   try { response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(payload),redirect:'manual',signal:requestSignal}); }

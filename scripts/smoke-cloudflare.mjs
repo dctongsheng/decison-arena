@@ -579,3 +579,5 @@ try {
   if (moderatorRole)
     localSql(`UPDATE role SET status='disabled' WHERE id='${moderatorRole}';`);
 }
+
+await import('./smoke-arcade.mjs');

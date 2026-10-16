@@ -28,6 +28,22 @@ describe('thinking request controls',()=>{
   await decide({id:'p',ownerId:'u',name:'test',credentialId:'k',provider:'openrouter',endpoint:ENDPOINTS.openrouter,model:'typesafe/jev-1.13'},'fixture-key',req);
   const payload=JSON.parse(transport.mock.calls[0][1]!.body as string);expect(payload).not.toHaveProperty('return_thought');expect(payload).not.toHaveProperty('think_mode');
  });
+ it('checks realtime ownership after asynchronous DNS and before sending any credential to the provider',async()=>{
+  vi.stubGlobal('WebSocketPair',class {});
+  let active=true;
+  const transport=vi.fn<typeof fetch>(async url=>{
+   expect(String(url)).toMatch(/^https:\/\/cloudflare-dns.com\/dns-query\?/);
+   // Simulate a run ending while custom-provider DNS preflight is outstanding.
+   active=false;
+   return Response.json({Status:0,Answer:[{type:1,data:'8.8.8.8'}]});
+  });
+  vi.stubGlobal('fetch',transport);
+  const guard=vi.fn(()=>{if(!active)throw new Error('fixture canceled before send');});
+  await expect(decide({id:'p',ownerId:'u',name:'test',credentialId:'k',provider:'custom-systemone',endpoint:'https://service.example.org/v1/systemone',model:'',thinkMode:'always'},'fixture-key',req,undefined,guard)).rejects.toThrow('fixture canceled before send');
+  expect(guard).toHaveBeenCalledTimes(1);
+  expect(transport).toHaveBeenCalledTimes(2);
+  for(const [,init] of transport.mock.calls)expect(new Headers(init?.headers).has('Authorization')).toBe(false);
+ });
 });
 describe('endpoint policy',()=>{
  it.each(['http://example.org/v1','https://127.0.0.1/v1','https://[::1]/','https://user:pass@foo.com/','https://foo.local/','https://foo.com:8090/v1','https://foo.com/?token=a'])('rejects %s',async url=>{await expect(validateEndpoint(url,undefined,{resolve:false})).rejects.toThrow();});

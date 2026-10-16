@@ -86,6 +86,22 @@ async function handler({ request }: { request: Request }) {
       else if (subresource === 'replay' && method === 'GET')
         result = await arena.getReplay(ownerId!, id);
       else throw new ArenaError('Not found.', 404);
+    } else if (resource === 'arcade-sessions' && !id) {
+      if (method === 'GET') result = await arena.listArcadeSessions(ownerId!);
+      else if (method === 'POST') result = await arena.createArcadeSession(ownerId!, await readJson(request));
+      else throw new ArenaError('Method not allowed.', 405);
+    } else if (resource === 'arcade-sessions' && id) {
+      const query = matchQuery(url.searchParams);
+      if (subresource === 'socket' && method === 'GET') {
+        assertSameOrigin(request);
+        if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
+          throw new ArenaError('WebSocket upgrade required.', 426);
+        return await runnerFetch(ownerId!, `/arcade-sessions/${id}/socket${query}`, { headers: { Upgrade: 'websocket' } });
+      }
+      if (!subresource && method === 'GET') result = await arena.getArcadeSession(ownerId!, id, query);
+      else if (subresource === 'commands' && method === 'POST') result = await arena.commandArcadeSession(ownerId!, id, await readJson(request));
+      else if (subresource === 'replay' && method === 'GET') result = await arena.getArcadeReplay(ownerId!, id);
+      else throw new ArenaError('Not found.', 404);
     } else if (resource === 'community' && !id) {
       if (method === 'GET')
         result = await arena.listCommunity(

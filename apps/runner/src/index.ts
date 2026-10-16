@@ -2,11 +2,14 @@ import { DurableObject } from 'cloudflare:workers';
 import { getGame } from '@decision-arena/games';
 import { decide, decryptSecret, validateEndpoint } from '@decision-arena/providers';
 import { publicSeats } from '@decision-arena/core';
+import { ArcadeSessionObject } from './arcade';
+export { ArcadeSessionObject } from './arcade';
 import type { CreateMatchInput, GameState, GameView, MatchCommand, MatchEvent, MatchSnapshot, MatchStatus, ReplayManifest, Seat, Viewer, DecisionResponse, GameResult, ModelProfile, DecisionRequest, ProviderId } from '@decision-arena/core';
 
 export interface Env {
   MATCHES: DurableObjectNamespace<MatchObject>;
   USER_QUOTAS: DurableObjectNamespace<UserQuota>;
+  ARCADES: DurableObjectNamespace<ArcadeSessionObject>;
   DB: D1Database;
   REPLAYS: R2Bucket;
   ARENA_ENCRYPTION_KEY: string;
@@ -289,6 +292,12 @@ export default {
           return json(await decide(body.profile,body.key,body.request));
         }finally{await quota.release(leaseId);}
       }catch(error){return json({error:safeError(error)},400);}
+    }
+    if(parts[0]==='arcade-sessions'){
+      let id=parts[1];
+      if(request.method==='POST'&&parts.length===1){id=`arcade-${crypto.randomUUID()}`;url.pathname=`/arcade-sessions/${id}`;}
+      if(!id||!/^arcade-[a-zA-Z0-9-]{8,100}$/.test(id))return json({error:'Invalid arcade session ID'},400);
+      return env.ARCADES.getByName(id).fetch(new Request(url,request));
     }
     if(parts[0]!=='matches')return json({error:'Not found'},404);
     let id=parts[1];

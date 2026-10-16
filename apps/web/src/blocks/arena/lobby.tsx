@@ -19,6 +19,7 @@ import {
 
 import { Link } from '@/core/i18n/navigation';
 import { apiGet } from '@/lib/api-client';
+import { ArcadeLobbySection } from '@/blocks/arcade/lobby-section';
 import { GameArtwork } from '@/components/arena/board';
 
 import {
@@ -148,6 +149,7 @@ export function LobbyPage() {
           </Link>
         ))}
       </div>
+      <ArcadeLobbySection />
       <section className="arena-how">
         <div>
           <div className="arena-eyebrow">YOUR KEY. YOUR MOVE.</div>

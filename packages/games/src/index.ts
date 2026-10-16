@@ -11,3 +11,6 @@ export function getGame(id: GameId | string): GameAdapter {
 }
 export { armyTerrain } from './army';
 export { gomokuWinningLine } from './gomoku';
+export { arcadeGames, getArcadeGame, snake, tetris, platformer } from './arcade';
+export type { SnakeState, TetrisState, PlatformerState } from './arcade';
+export { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions } from './arcade/decision';

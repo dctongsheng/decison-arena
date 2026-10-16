@@ -70,7 +70,7 @@ export async function runnerFetch(
   admin = false
 ): Promise<Response> {
   if (
-    !/^\/matches(?:\/|$|\?)/.test(path) &&
+    !/^\/(?:matches|arcade-sessions)(?:\/|$|\?)/.test(path) &&
     !['/provider-test', '/validate-endpoint'].includes(path)
   )
     throw new ArenaError('Invalid runner path.');

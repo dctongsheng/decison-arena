@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "exports": "./src/index.ts",
+  "exports": { ".": "./src/index.ts", "./arcade": "./src/arcade/index.ts" },
   "scripts": { "test": "vitest run tests", "typecheck": "tsc --noEmit -p tsconfig.json" },
   "dependencies": { "@decision-arena/core": "workspace:*" }
 }

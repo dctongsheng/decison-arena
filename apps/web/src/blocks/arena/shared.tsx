@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ArcadeGameId,
+  ArcadeResult,
   GameId,
   GameResult,
   MatchEvent,
@@ -25,6 +27,7 @@ import { Link, usePathname } from '@/core/i18n/navigation';
 import { envConfigs } from '@/config';
 import { apiGet } from '@/lib/api-client';
 import { getLocale, setLocale } from '@/paraglide/runtime.js';
+import { a } from '@/blocks/arcade/messages';
 import { Button } from '@/components/ui/button';
 
 import './arena.css';
@@ -33,16 +36,29 @@ import { arenaText as t } from './messages';
 
 export { arenaText as t } from './messages';
 
-export const gameName = (id: GameId) => t(`game.${id}`);
+export const gameName = (id: GameId | ArcadeGameId) =>
+  ['snake', 'tetris', 'platformer'].includes(id)
+    ? a(`game.${id}`)
+    : t(`game.${id}`);
 export const statusName = (status: string) => t(`status.${status}`);
 export const seatName = (game: GameId, seat: number) =>
   t(`seat.${game}.${seat}`);
-export function resultName(result: GameResult | undefined, game: GameId) {
+export function resultName(
+  result: GameResult | ArcadeResult | undefined,
+  game: GameId | ArcadeGameId
+) {
+  if (result && 'scores' in result) {
+    if (result.aborted) return a('finished');
+    if (result.scores.length === 1) return a('solo_complete');
+    return result.winner === null
+      ? a('draw')
+      : `${a(result.winner === 0 ? 'left' : 'right')} · ${a('win')}`;
+  }
   return !result
     ? t('in_progress')
     : result.winner === null
       ? t('draw')
-      : `${seatName(game, result.winner)} · ${t('wins')}`;
+      : `${seatName(game as GameId, result.winner)} · ${t('wins')}`;
 }
 export function reasonName(reason?: string) {
   if (!reason) return '';
@@ -74,7 +90,7 @@ export function eventLabel(event: MatchEvent): string {
 export function formatDate(value: string | number) {
   return new Date(value).toLocaleString(
     getLocale() === 'zh' ? 'zh-CN' : 'en-US',
-    { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+    { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' }
   );
 }
 export interface SavedModel {
@@ -100,13 +116,15 @@ export interface CommunityPost {
   matchId: string;
   title: string;
   description: string;
-  gameId: GameId;
+  gameId: GameId | ArcadeGameId;
+  engineKind?: 'arcade';
+  controllers?: PublicSeatConfig[];
   createdAt: string | number;
   authorName: string;
   likes: number;
   commentCount: number;
-  result?: GameResult;
-  seats?: [PublicSeatConfig, PublicSeatConfig];
+  result?: GameResult | ArcadeResult;
+  seats?: PublicSeatConfig[];
 }
 export function useModels(enabled = true) {
   const { data: session } = useSession();
@@ -121,6 +139,8 @@ export function ArenaShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const path = usePathname();
   const { data: session } = useSession();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const links = [
     { href: '/', label: t('nav.lobby'), Icon: Grid2X2 },
     { href: '/community', label: t('nav.community'), Icon: Users },
@@ -164,7 +184,7 @@ export function ArenaShell({ children }: { children: ReactNode }) {
             >
               {getLocale() === 'zh' ? 'EN' : '中文'}
             </button>
-            {session?.user ? (
+            {mounted && session?.user ? (
               <>
                 <Link
                   href="/settings/profile"
@@ -236,7 +256,9 @@ export function PageHeading({
 export function AuthGate({ children }: { children: ReactNode }) {
   const { data: session, isPending } = useSession();
   const path = usePathname();
-  if (isPending) return <Loading />;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted || isPending) return <Loading />;
   if (!session?.user)
     return (
       <div className="arena-auth arena-panel">
