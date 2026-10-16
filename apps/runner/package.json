@@ -1,0 +1,1 @@
+{"name":"@decision-arena/runner","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"wrangler dev --ip 127.0.0.1 --port 5092 --persist-to ../../.wrangler/state","build":"wrangler deploy --dry-run --outdir dist"},"dependencies":{"@decision-arena/core":"workspace:*","@decision-arena/games":"workspace:*","@decision-arena/providers":"workspace:*"}}

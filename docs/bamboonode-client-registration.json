@@ -1,0 +1,15 @@
+{
+  "client_id": "decision-arena-local",
+  "client_name": "Decision Arena — local development",
+  "client_type": "external",
+  "redirect_uris": [
+    "http://127.0.0.1:5091/api/auth/oauth2/callback/bamboonode",
+    "http://127.0.0.1:5093/api/auth/oauth2/callback/bamboonode"
+  ],
+  "grant_types": ["authorization_code"],
+  "scopes": ["openid", "profile", "email"],
+  "access_token_ttl": 900,
+  "refresh_token_ttl": 3600,
+  "description": "Sign in to Decision Arena using a BambooNode account. No billing, quota, model gateway or administrator permissions.",
+  "is_active": true
+}

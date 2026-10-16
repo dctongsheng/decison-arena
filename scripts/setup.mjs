@@ -1,0 +1,22 @@
+import {spawnSync} from 'node:child_process';
+import {existsSync,readFileSync,writeFileSync,readdirSync,mkdirSync,copyFileSync} from 'node:fs';
+import {resolve,dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {randomBytes} from 'node:crypto';
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+if(!existsSync(resolve(root,'apps/web/wrangler.jsonc')))copyFileSync(resolve(root,'apps/web/wrangler.example.jsonc'),resolve(root,'apps/web/wrangler.jsonc'));
+const run=(args,cwd=root)=>{const r=spawnSync('pnpm',args,{cwd,stdio:'inherit',env:process.env});if(r.status!==0)process.exit(r.status??1);};
+run(['exec','wrangler','d1','execute','decision-arena-db','--local','--config','apps/runner/wrangler.jsonc','--persist-to',resolve(root,'.wrangler/state'),'--command','SELECT 1']);
+function files(dir){if(!existsSync(dir))return[];return readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(resolve(dir,e.name)):[resolve(dir,e.name)]);}
+const candidates=files(resolve(root,'.wrangler/state/v3/d1')).filter(p=>p.endsWith('.sqlite') && !p.endsWith('/metadata.sqlite'));
+if(candidates.length!==1)throw new Error('Expected exactly one local D1 database; inspect .wrangler/state/v3/d1 before continuing');
+const envPath=resolve(root,'apps/web/.env.development');
+const existing=existsSync(envPath)?Object.fromEntries(readFileSync(envPath,'utf8').split('\n').filter(l=>l.includes('=')&&!l.startsWith('#')).map(l=>{const i=l.indexOf('=');return[l.slice(0,i),l.slice(i+1)];})):{};
+const secret=()=>randomBytes(32).toString('hex');
+const values={VITE_APP_URL:'http://127.0.0.1:5091',VITE_APP_NAME:'Decision Arena',VITE_APP_DESCRIPTION:'Play, compare and share decision models',VITE_DEFAULT_LOCALE:'zh',DATABASE_PROVIDER:'sqlite',DATABASE_URL:`file:${candidates[0]}`,AUTH_SECRET:existing.AUTH_SECRET||secret(),CONFIG_ENCRYPTION_KEY:existing.CONFIG_ENCRYPTION_KEY||secret(),ARENA_ENCRYPTION_KEY:existing.ARENA_ENCRYPTION_KEY||secret(),ARENA_INTERNAL_SECRET:existing.ARENA_INTERNAL_SECRET||secret(),ARENA_RUNNER_URL:'http://127.0.0.1:5092',AUTH_TRUSTED_ORIGINS:'http://127.0.0.1:5091,http://localhost:5091'};
+writeFileSync(envPath,Object.entries(values).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600});
+writeFileSync(resolve(root,'apps/runner/.dev.vars'),`LOCAL_DEV=true\nARENA_ENCRYPTION_KEY=${values.ARENA_ENCRYPTION_KEY}\nARENA_INTERNAL_SECRET=${values.ARENA_INTERNAL_SECRET}\n`,{mode:0o600});
+run(['--filter','@decision-arena/web','db:setup']);
+run(['--filter','@decision-arena/web','db:push']);
+run(['--filter','@decision-arena/web','rbac:init']);
+console.log('Local setup complete. pnpm dev starts Decision Arena at http://127.0.0.1:5091/zh. Sign up to create your own account.');

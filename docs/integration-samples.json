@@ -1,0 +1,240 @@
+{
+  "date": "2026-10-15",
+  "scope": "Bounded integration smoke matches; not strength benchmarks. API keys and raw responses excluded.",
+  "matches": [
+    {
+      "gameId": "gomoku",
+      "mode": "local",
+      "id": "9bc4cb1f-31e1-4555-aa0b-1b78f83cf033",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 4,
+      "metrics": []
+    },
+    {
+      "gameId": "gomoku",
+      "mode": "human-ai",
+      "id": "1e9777db-dce8-4aa7-9fda-6009c8e0b3d3",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 4,
+      "metrics": [
+        {
+          "seat": 1,
+          "action": "place:40",
+          "elapsedMs": 5472,
+          "confidence": 0.7240828501084066,
+          "probabilities": "returned",
+          "actualModel": "startlux-decision-27b-autothink",
+          "usage": {
+            "input_tokens": 3648,
+            "output_tokens": 89
+          },
+          "thoughtUsed": true
+        }
+      ]
+    },
+    {
+      "gameId": "xiangqi",
+      "mode": "local",
+      "id": "47efd269-58dc-465f-a7e2-330992f13de8",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 4,
+      "metrics": []
+    },
+    {
+      "gameId": "xiangqi",
+      "mode": "human-ai",
+      "id": "bbfcccf7-8c3a-4f0c-a1f6-5395c6787d78",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 4,
+      "metrics": [
+        {
+          "seat": 1,
+          "action": "a6a5",
+          "elapsedMs": 3199,
+          "confidence": 0.227588073026875,
+          "probabilities": "returned",
+          "actualModel": "startlux-decision-27b-autothink",
+          "usage": {
+            "input_tokens": 2796,
+            "output_tokens": 176
+          },
+          "thoughtUsed": true
+        }
+      ]
+    },
+    {
+      "gameId": "army",
+      "mode": "local",
+      "id": "d37d18f8-b74b-4e2a-be57-5108447c0095",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 6,
+      "metrics": []
+    },
+    {
+      "gameId": "army",
+      "mode": "human-ai",
+      "id": "76073bcf-d921-4770-b62a-c6702f9cb699",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 5,
+      "metrics": [
+        {
+          "seat": 1,
+          "action": "move:30:25",
+          "elapsedMs": 10879,
+          "actualModel": "startlux-decision-27b-autothink",
+          "usage": {
+            "input_tokens": 9267,
+            "output_tokens": 953
+          },
+          "thoughtUsed": true
+        }
+      ]
+    },
+    {
+      "gameId": "gomoku",
+      "mode": "ai-ai",
+      "id": "5a6c2e7a-d86e-4af5-a456-7e86f10f0e84",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 4,
+      "metrics": [
+        {
+          "seat": 0,
+          "action": "place:40",
+          "elapsedMs": 1117,
+          "confidence": 0.6,
+          "probabilities": "returned",
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 2066,
+            "output_tokens": 739,
+            "cost": 8.6772e-05
+          }
+        },
+        {
+          "seat": 1,
+          "action": "place:31",
+          "elapsedMs": 947,
+          "confidence": 0.31,
+          "probabilities": "returned",
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 2095,
+            "output_tokens": 730,
+            "cost": 8.799e-05
+          }
+        }
+      ]
+    },
+    {
+      "gameId": "xiangqi",
+      "mode": "ai-ai",
+      "id": "faf59dff-199e-4b40-863b-03e2f245f184",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 4,
+      "metrics": [
+        {
+          "seat": 0,
+          "action": "b2b9",
+          "elapsedMs": 786,
+          "confidence": 0.2,
+          "probabilities": "returned",
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 1783,
+            "output_tokens": 406,
+            "cost": 7.4886e-05
+          }
+        },
+        {
+          "seat": 1,
+          "action": "a9b9",
+          "elapsedMs": 9585,
+          "confidence": 0.5906568192132903,
+          "probabilities": "returned",
+          "actualModel": "startlux-decision-27b-autothink",
+          "usage": {
+            "input_tokens": 2758,
+            "output_tokens": 788
+          },
+          "thoughtUsed": true
+        }
+      ]
+    },
+    {
+      "gameId": "army",
+      "mode": "ai-ai",
+      "id": "da3c60d4-bbd0-4ba0-9f34-22ef8e8d3f4c",
+      "ok": true,
+      "plies": 2,
+      "result": {
+        "winner": null,
+        "reason": "ended_by_user"
+      },
+      "frames": 4,
+      "metrics": [
+        {
+          "seat": 0,
+          "action": "move:25:30",
+          "elapsedMs": 3042,
+          "actualModel": "typesafe/jev-1.13-20260917",
+          "usage": {
+            "input_tokens": 3406,
+            "output_tokens": 298,
+            "cost": 0.000143052
+          }
+        },
+        {
+          "seat": 1,
+          "action": "move:34:29",
+          "elapsedMs": 45298,
+          "actualModel": "startlux-decision-27b-autothink",
+          "usage": {
+            "input_tokens": 9122,
+            "output_tokens": 4096
+          },
+          "thoughtUsed": true
+        }
+      ]
+    }
+  ]
+}

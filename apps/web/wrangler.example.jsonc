@@ -1,0 +1,11 @@
+{
+  "$schema":"../../node_modules/wrangler/config-schema.json",
+  "name":"decision-arena-web",
+  "compatibility_date":"2026-06-01",
+  "compatibility_flags":["nodejs_compat"],
+  "vars":{"DATABASE_PROVIDER":"d1","VITE_APP_URL":"http://127.0.0.1:5091","VITE_APP_NAME":"Decision Arena","VITE_DEFAULT_LOCALE":"zh"},
+  "services":[{"binding":"MATCH_SERVICE","service":"decision-arena-runner"}],
+  "d1_databases":[{"binding":"DB","database_name":"decision-arena-db","database_id":"00000000-0000-0000-0000-000000000001","migrations_dir":"drizzle"}],
+  "r2_buckets":[{"binding":"REPLAYS","bucket_name":"decision-arena-replays"}],
+  "observability":{"enabled":true}
+}

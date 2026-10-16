@@ -1,0 +1,14 @@
+{
+  "$schema":"../../node_modules/wrangler/config-schema.json",
+  "name":"decision-arena-runner",
+  "main":"src/index.ts",
+  "compatibility_date":"2026-06-01",
+  "compatibility_flags":["nodejs_compat","global_fetch_strictly_public"],
+  "workers_dev":false,
+  "preview_urls":false,
+  "durable_objects":{"bindings":[{"name":"MATCHES","class_name":"MatchObject"},{"name":"USER_QUOTAS","class_name":"UserQuota"}]},
+  "migrations":[{"tag":"v1","new_sqlite_classes":["MatchObject","UserQuota"]}],
+  "d1_databases":[{"binding":"DB","database_name":"decision-arena-db","database_id":"00000000-0000-0000-0000-000000000001","migrations_dir":"../web/drizzle"}],
+  "r2_buckets":[{"binding":"REPLAYS","bucket_name":"decision-arena-replays"}],
+  "observability":{"enabled":true}
+}

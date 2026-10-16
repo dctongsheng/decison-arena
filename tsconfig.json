@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"skipLibCheck":true,"esModuleInterop":true,"allowJs":true,"resolveJsonModule":true,"types":["@cloudflare/workers-types","node"],"lib":["ES2022","DOM"]},"include":["packages/**/*.ts","apps/runner/src/**/*.ts"]}

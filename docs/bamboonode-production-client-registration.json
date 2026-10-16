@@ -1,0 +1,14 @@
+{
+  "client_id": "decision-arena",
+  "client_name": "Decision Arena",
+  "client_type": "external",
+  "redirect_uris": [
+    "https://arena.startlux-desicion.com/api/auth/oauth2/callback/bamboonode"
+  ],
+  "grant_types": ["authorization_code"],
+  "scopes": ["openid", "profile", "email"],
+  "access_token_ttl": 900,
+  "refresh_token_ttl": 3600,
+  "description": "Production login for Decision Arena. Identity only; no quota, model gateway or administrator permissions.",
+  "is_active": true
+}
