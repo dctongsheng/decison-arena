@@ -1,6 +1,6 @@
 {
   "client_id": "decision-arena-local",
-  "client_name": "Decision Arena — local development",
+  "client_name": "Decision Arena Local",
   "client_type": "external",
   "redirect_uris": [
     "http://127.0.0.1:5091/api/auth/oauth2/callback/bamboonode",
