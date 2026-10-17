@@ -2,6 +2,11 @@ import { createFileRoute } from '@tanstack/react-router';
 import { ZodError } from 'zod';
 
 import {
+  disconnectBambooConnection,
+  getBambooConnection,
+  syncBambooConnection,
+} from '@/core/arena/bamboonode';
+import {
   ArenaError,
   assertSameOrigin,
   discardRejectedBody,
@@ -37,7 +42,14 @@ async function handler({ request }: { request: Request }) {
     const id = rawId ? idSchema.parse(rawId) : undefined;
     let result: unknown;
 
-    if (resource === 'credentials' && !id) {
+    if (resource === 'bamboonode' && !subresource) {
+      if (method === 'GET' && !id) result = await getBambooConnection(ownerId!);
+      else if (method === 'POST' && id === 'sync')
+        result = await syncBambooConnection(ownerId!);
+      else if (method === 'POST' && id === 'disconnect')
+        result = await disconnectBambooConnection(ownerId!);
+      else throw new ArenaError('Method not allowed.', 405);
+    } else if (resource === 'credentials' && !id) {
       if (method === 'GET') result = await arena.listCredentials(ownerId!);
       else if (method === 'POST')
         result = await arena.saveCredential(ownerId!, await readJson(request));

@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { resolve } from 'node:path';
 import { Miniflare, Log, LogLevel, Response as MockResponse, type MiniflareOptions } from 'miniflare';
 import type { CreateMatchInput, MatchSnapshot, ModelProfile, ReplayManifest, SeatConfig } from '@decision-arena/core';
-import { encryptSecret } from '@decision-arena/providers';
+import { encryptSecret, ENDPOINTS } from '@decision-arena/providers';
 
 const master = 'fixture-master-key-do-not-use-in-production-2026';
 const internal = 'fixture-internal-secret';
@@ -58,6 +58,12 @@ async function profile(account = owner): Promise<ModelProfile> {
   const id = crypto.randomUUID(), ciphertext = await encryptSecret(providerKey, master, account);
   await db.prepare('INSERT INTO arena_credentials(id,owner_id,name,ciphertext,masked,created_at) VALUES(?,?,?,?,?,?)').bind(id, account, 'fixture', ciphertext, '••••real', Date.now()).run();
   return { id: crypto.randomUUID(), ownerId: account, credentialId: id, provider: 'openrouter', endpoint: 'https://openrouter.ai/api/alpha/decisions', model: 'fixture-model', name: 'Fixture model' };
+}
+async function bambooProfile(): Promise<ModelProfile> {
+  const own: ModelProfile = { ...await profile(), provider: 'bamboonode-systemone', endpoint: ENDPOINTS['bamboonode-systemone'], model: 'startlux-decision-27b-autothink', thinkMode: 'always', thinkBudget: 512 };
+  await db.prepare('INSERT OR REPLACE INTO arena_bamboo_connections(owner_id,credential_id,status,expires_at,models_json) VALUES(?,?,?,?,?)')
+    .bind(owner, own.credentialId, 'connected', Date.now() + 60_000, JSON.stringify([own.model])).run();
+  return own;
 }
 async function until(predicate: () => Promise<boolean> | boolean, description: string, timeout = 10000) {
   const stop = Date.now() + timeout;
@@ -115,7 +121,7 @@ beforeAll(async () => {
           .filter(address => (target.searchParams.get('type') === 'AAAA') === address.includes(':'))
           .map(address => ({ type: address.includes(':') ? 28 : 1, data: address })) }), { headers: { 'content-type': 'application/json' } });
       }
-      if (req.url !== 'https://openrouter.ai/api/alpha/decisions') throw new Error(`Unexpected outbound request: ${req.url}`);
+      if (![ENDPOINTS.openrouter, ENDPOINTS['bamboonode-systemone'], ENDPOINTS['bamboonode-decisions']].some(endpoint => endpoint === req.url)) throw new Error(`Unexpected outbound request: ${req.url}`);
       const body = await req.json();
       calls.push({ body, authorization: req.headers.get('authorization') });
       return reply(body);
@@ -132,11 +138,115 @@ beforeAll(async () => {
     await db.prepare(sql).run();
   }
   for (const id of [owner, stranger]) await db.prepare('INSERT INTO user(id,name,email) VALUES(?,?,?)').bind(id, id, `${id}@example.test`).run();
+  await db.prepare('CREATE TABLE arena_bamboo_connections(owner_id TEXT PRIMARY KEY, credential_id TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL, models_json TEXT NOT NULL)').run();
 });
 beforeEach(() => { calls = []; dnsAddresses = ['8.8.8.8']; reply = async body => success(body); });
 afterAll(async () => { await mf?.dispose(); rmSync(persistence, { recursive: true, force: true }); });
 
 describe('actual workerd runner integration (fixture providers only)', () => {
+  it('requires a current owner-bound BambooNode connection and model catalog when creating matches', async () => {
+    for (const condition of ['missing', 'expired', 'disconnected', 'foreign-owner', 'different-key', 'model-removed', 'invalid-catalog']) {
+      const own = await bambooProfile();
+      if (condition === 'missing') await db.prepare('DELETE FROM arena_bamboo_connections').run();
+      if (condition === 'expired') await db.prepare('UPDATE arena_bamboo_connections SET expires_at=? WHERE owner_id=?').bind(Date.now() - 1, owner).run();
+      if (condition === 'disconnected') await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+      if (condition === 'foreign-owner') { await db.prepare('DELETE FROM arena_bamboo_connections WHERE owner_id=?').bind(stranger).run(); await db.prepare('UPDATE arena_bamboo_connections SET owner_id=? WHERE owner_id=?').bind(stranger, owner).run(); }
+      if (condition === 'different-key') await db.prepare('UPDATE arena_bamboo_connections SET credential_id=? WHERE owner_id=?').bind(crypto.randomUUID(), owner).run();
+      if (condition === 'model-removed' || condition === 'invalid-catalog') await db.prepare('UPDATE arena_bamboo_connections SET models_json=? WHERE owner_id=?').bind(condition === 'model-removed' ? '[]' : 'not-json', owner).run();
+      const response = await request('/matches', { gameId: 'gomoku', config: {}, seats: [{ kind: 'ai', profile: own }, { kind: 'human' }] });
+      expect(response.status, condition).toBe(400); expect(calls).toHaveLength(0);
+    }
+  });
+
+  it('keeps board-game thinking enabled for a valid BambooNode model', async () => {
+    const own = await bambooProfile(), match = await create('gomoku', [{ kind: 'ai', profile: own }, { kind: 'human' }]);
+    await command(match.id, { type: 'step' });
+    await until(async () => (await snapshot(match.id)).view.ply === 1, 'BambooNode board decision');
+    expect(calls).toHaveLength(1); expect(calls[0].body).toMatchObject({ model: own.model, think_mode: 'always', think_budget: 512, return_thought: true });
+    expect(calls[0].authorization).toBe(`Bearer ${providerKey}`);
+    await command(match.id, { type: 'end' });
+  });
+
+  it.each(['before-dispatch', 'during-inference'])('prevents a BambooNode move when disconnected %s without resending', async phase => {
+    const own = await bambooProfile(), match = await create('gomoku', [{ kind: 'ai', profile: own }, { kind: 'human' }]);
+    const gate = deferred(); reply = async body => { await gate.promise; return success(body); };
+    try {
+      if (phase === 'before-dispatch') await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+      await command(match.id, { type: 'step' });
+      if (phase === 'during-inference') {
+        await until(() => calls.length === 1, 'BambooNode inference starts');
+        // Leave the credential row present to exercise connection revocation itself.
+        await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+      }
+      gate.release();
+      await until(async () => (await snapshot(match.id)).status === 'error', 'BambooNode revocation pauses the match');
+      const state = await snapshot(match.id); expect(state.view.ply).toBe(0); expect(state.error).toContain('BambooNode');
+      expect(state.events.filter(event => event.type === 'action')).toHaveLength(0);
+      expect(calls).toHaveLength(phase === 'before-dispatch' ? 0 : 1);
+      await command(match.id, { type: 'end' });
+    } finally { gate.release(); }
+  });
+
+  it.each([false, true])('binds a BambooNode board result to the sent key across reconnect/sync (new key=%s)', async changedKey => {
+    const own = await bambooProfile(), match = await create('gomoku', [{ kind: 'ai', profile: own }, { kind: 'human' }]);
+    const gate = deferred(); reply = async body => { await gate.promise; return success(body); };
+    try {
+      await command(match.id, { type: 'step' });
+      await until(() => calls.length === 1, 'BambooNode board inference starts before key update');
+      const previous = await db.prepare('SELECT ciphertext FROM arena_credentials WHERE id=?').bind(own.credentialId).first<{ ciphertext: string }>();
+      if (changedKey) {
+        await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+        await db.prepare("UPDATE arena_credentials SET ciphertext='',deleted_at=? WHERE id=?").bind(Date.now(), own.credentialId).run();
+      }
+      const ciphertext = await encryptSecret(changedKey ? 'fixture-reconnected-key' : providerKey, master, owner);
+      expect(ciphertext).not.toBe(previous!.ciphertext);
+      await db.prepare('UPDATE arena_credentials SET ciphertext=?,deleted_at=NULL WHERE id=?').bind(ciphertext, own.credentialId).run();
+      await db.prepare("UPDATE arena_bamboo_connections SET status='connected' WHERE owner_id=?").bind(owner).run();
+      gate.release();
+      await until(async () => { const state = await snapshot(match.id); return changedKey ? state.status === 'error' : state.view.ply === 1; }, 'BambooNode board response validates the actual key');
+      const state = await snapshot(match.id);
+      expect(state.view.ply).toBe(changedKey ? 0 : 1);
+      expect(state.events.filter(event => event.type === 'action')).toHaveLength(changedKey ? 0 : 1);
+      if (changedKey) expect(state.error).toContain('BambooNode authorization changed');
+      expect(calls).toHaveLength(1); expect(calls[0].authorization).toBe(`Bearer ${providerKey}`);
+    } finally { gate.release(); await command(match.id, { type: 'end' }); }
+  });
+
+  it('rejects a stale BambooNode connection-test key before any outbound request', async () => {
+    const own = await bambooProfile();
+    const response = await request('/provider-test', { profile: own, key: 'fixture-stale-key', request: { state: {}, actions: [{ id: 'ready', label: 'Ready' }], instructions: 'Choose ready' } });
+    expect(response.status).toBe(400); expect(await response.text()).toContain('BambooNode authorization changed');
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([false, true])('validates the BambooNode connection-test key after a delayed response (new key=%s)', async changedKey => {
+    const own = await bambooProfile(), gate = deferred();
+    const payload = { profile: own, key: providerKey, request: { state: {}, actions: [{ id: 'ready', label: 'Ready' }], instructions: 'Choose ready' } };
+    reply = async body => { await gate.promise; return success(body); };
+    const pending = request('/provider-test', payload);
+    try {
+      await until(() => calls.length === 1, 'BambooNode connection test is in flight');
+      const currentKey = changedKey ? 'fixture-reconnected-probe-key' : providerKey;
+      if (changedKey) {
+        await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+        await db.prepare("UPDATE arena_credentials SET ciphertext='',deleted_at=? WHERE id=?").bind(Date.now(), own.credentialId).run();
+      }
+      const ciphertext = await encryptSecret(currentKey, master, owner);
+      await db.prepare('UPDATE arena_credentials SET ciphertext=?,deleted_at=NULL WHERE id=?').bind(ciphertext, own.credentialId).run();
+      await db.prepare("UPDATE arena_bamboo_connections SET status='connected' WHERE owner_id=?").bind(owner).run();
+      gate.release();
+      const response = await pending;
+      expect(response.status).toBe(changedKey ? 400 : 200);
+      const result = await response.json() as { error?: string; actionId?: string };
+      if (changedKey) expect(result.error).toContain('BambooNode authorization changed');
+      else expect(result.actionId).toBe('ready');
+      expect(calls).toHaveLength(1);
+      // An explicit test with the current key works and proves the old lease released.
+      expect((await request('/provider-test', { ...payload, key: currentKey })).status).toBe(200);
+      expect(calls).toHaveLength(2); expect(calls[1].authorization).toBe(`Bearer ${currentKey}`);
+    } finally { gate.release(); await pending; }
+  });
+
   it('requires the private bridge secret, isolates owners and rejects cross-owner credentials', async () => {
     const denied = await mf.dispatchFetch('https://arena.test/matches', { method: 'POST', headers: { 'X-Arena-Owner': owner }, body: '{}' });
     expect(denied.status).toBe(401);

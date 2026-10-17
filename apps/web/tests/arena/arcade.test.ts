@@ -91,6 +91,27 @@ describe('arcade activity validation and tenant boundaries', () => {
 });
 
 describe('arcade community replay', () => {
+  it.each([
+    ['bamboonode-systemone', 'startlux-decision-27b-autothink'],
+    ['bamboonode-decisions', 'typesafe/jev-1.14'],
+  ])('publishes and reads %s arcade replays without private account data', async (provider, model) => {
+    await indexed();
+    const privateReplay = { ...replay,
+      controllers: replay.controllers.map(controller => ({ ...controller, profile: { ...controller.profile,
+        provider, model, thinkMode: 'never', ownerId: 'private-owner', credentialId: 'private-credential',
+        endpoint: 'https://private.invalid', apiKey: 'private-gateway-key',
+        accessToken: 'private-oauth-access', refreshToken: 'private-oauth-refresh' } })) };
+    globals.__CF_ENV__ = { ...(globals.__CF_ENV__ as Record<string, unknown>),
+      MATCH_SERVICE: { fetch: async () => Response.json(privateReplay) } };
+    const post = await arena.publishReplay('alice', { matchId: 'arcade-a', title: 'BambooNode run' });
+    const detail = await arena.communityDetail(post.id);
+    if (detail.replay.version !== 2) throw new Error('Expected arcade replay');
+    expect(detail.replay.controllers[0].profile).toMatchObject({ provider, model, thinkMode: 'never' });
+    expect(detail.replay.events[0].metrics?.elapsedMs).toBe(333);
+    const serialized = JSON.stringify(detail);
+    for (const value of ['private-owner', 'private-credential', 'private.invalid', 'private-gateway-key', 'private-oauth', 'private-thought'])
+      expect(serialized).not.toContain(value);
+  });
   it('publishes a single AI track and clones it with the viewer’s own credentials', async () => {
     const solo = { ...replay, mode: 'ai-solo', controllers: [replay.controllers[0]], runIds: ['run-0'],
       frames: [{ tick: 60, views: [view] }], result: { ...replay.result, scores: [score] } };

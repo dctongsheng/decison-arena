@@ -39,7 +39,8 @@ export const envConfigs: Record<string, string> = {
   bamboonode_authorization_url: procEnv.BAMBOONODE_AUTHORIZATION_URL ?? '',
   bamboonode_token_url: procEnv.BAMBOONODE_TOKEN_URL ?? '',
   bamboonode_userinfo_url: procEnv.BAMBOONODE_USERINFO_URL ?? '',
-  bamboonode_scopes: procEnv.BAMBOONODE_SCOPES ?? 'openid profile email',
+  bamboonode_scopes:
+    procEnv.BAMBOONODE_SCOPES ?? 'openid profile email quota model_gateway',
   bamboonode_token_auth_method: procEnv.BAMBOONODE_TOKEN_AUTH_METHOD ?? 'post',
   bamboonode_account_url: procEnv.BAMBOONODE_ACCOUNT_URL ?? '',
 

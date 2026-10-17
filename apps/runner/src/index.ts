@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { getGame } from '@decision-arena/games';
-import { decide, decryptSecret, validateEndpoint } from '@decision-arena/providers';
+import { decide, decryptSecret, isBambooNodeProvider, validateEndpoint } from '@decision-arena/providers';
+import { assertBambooNodeAccess, assertBambooNodeKey } from './bamboonode';
 import { publicSeats } from '@decision-arena/core';
 import { ArcadeSessionObject } from './arcade';
 export { ArcadeSessionObject } from './arcade';
@@ -136,6 +137,7 @@ export class MatchObject extends DurableObject<Env> {
         if(!seat.profile||seat.profile.ownerId!==ownerId)throw new Error('Model does not belong to account');
         const credential=await this.env.DB.prepare('SELECT id FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(seat.profile.credentialId,ownerId).first();
         if(!credential)throw new Error('Credential not found');
+        await assertBambooNodeAccess(this.env.DB,ownerId,seat.profile);
       }
     }
     // Recheck after asynchronous validation: simultaneous creates must not overwrite.
@@ -218,13 +220,17 @@ export class MatchObject extends DurableObject<Env> {
       const credential=await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId,r.ownerId).first<{ciphertext:string}>();
       if(!credential)throw new Error('Credential was removed; choose an available model for a new match');
       const key=await decryptSecret(credential.ciphertext,this.env.ARENA_ENCRYPTION_KEY,r.ownerId);
+      await assertBambooNodeAccess(this.env.DB,r.ownerId,profile);
+      if(this.rec?.inflight?.id!==operationId||r.revision!==revision||this.isFinished())return;
       const actions=game.legalActions(r.state,seat);
       const history=this.ctx.storage.sql.exec<{value:string}>('SELECT value FROM events ORDER BY seq DESC LIMIT 40').toArray().reverse().map(row=>JSON.parse(row.value) as MatchEvent).filter(e=>e.type==='action').slice(-20).map(e=>({seat:e.seat,action:e.action}));
       const decision=await decide(profile,key,{state:{game:r.input.gameId,rules:game.rules,position:game.observe(r.state,seat),recentMoves:history},instructions:'Choose exactly one legal action to improve your chance of winning. The position and recent moves are the full available information.',actions});
       if(this.rec?.inflight?.id!==operationId||r.revision!==revision||this.isFinished())return;
       // Key deletion while inference is in flight also prevents committing its result.
-      const stillExists=await this.env.DB.prepare('SELECT id FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId,r.ownerId).first();
+      const stillExists=await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId,r.ownerId).first<{ciphertext:string}>();
       if(!stillExists)throw new Error('Credential was removed during the decision');
+      await assertBambooNodeKey(profile,stillExists.ciphertext,key,this.env.ARENA_ENCRYPTION_KEY,r.ownerId);
+      await assertBambooNodeAccess(this.env.DB,r.ownerId,profile);
       if(this.rec?.inflight?.id!==operationId||r.revision!==revision||this.isFinished())return;
       this.ctx.storage.transactionSync(()=>{
         r.activeMs+=Date.now()-r.inflight!.startedAt;r.inflight=undefined;
@@ -276,7 +282,7 @@ export default {
     if(parts[0]==='validate-endpoint'&&request.method==='POST'){
       try{
         const body=await request.json() as {endpoint:string;provider:ProviderId};
-        if(typeof body.endpoint!=='string'||!['openrouter','systemone','custom-openrouter','custom-systemone'].includes(body.provider))throw new Error('Invalid provider configuration');
+        if(typeof body.endpoint!=='string'||(!['openrouter','systemone','custom-openrouter','custom-systemone'].includes(body.provider)&&!isBambooNodeProvider(body.provider)))throw new Error('Invalid provider configuration');
         return json({endpoint:await validateEndpoint(body.endpoint,body.provider)});
       }catch(error){return json({error:safeError(error)},400);}
     }
@@ -289,7 +295,18 @@ export default {
         if(!await quota.acquire(leaseId))return json({error:'Another model request is running in this account'},429);
         try{
           // Credential exists only in this internal request; it is never persisted here.
-          return json(await decide(body.profile,body.key,body.request));
+          const validateConnection = async () => {
+            await assertBambooNodeAccess(env.DB,owner,body.profile);
+            if(isBambooNodeProvider(body.profile.provider)) {
+              const current=await env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(body.profile.credentialId,owner).first<{ciphertext:string}>();
+              if(!current)throw new Error('BambooNode credential was removed; reconnect before testing');
+              await assertBambooNodeKey(body.profile,current.ciphertext,body.key,env.ARENA_ENCRYPTION_KEY,owner);
+            }
+          };
+          await validateConnection();
+          const decision=await decide(body.profile,body.key,body.request);
+          await validateConnection();
+          return json(decision);
         }finally{await quota.release(leaseId);}
       }catch(error){return json({error:safeError(error)},400);}
     }

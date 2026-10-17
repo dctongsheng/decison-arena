@@ -1,6 +1,17 @@
-import type { DecisionRequest, DecisionResponse, ModelProfile, ProviderId, ProviderAdapter } from '@decision-arena/core';
+import type { BambooNodeProviderId, DecisionRequest, DecisionResponse, ModelProfile, ProviderId, ProviderAdapter } from '@decision-arena/core';
 
-export const ENDPOINTS = { openrouter: 'https://openrouter.ai/api/alpha/decisions', systemone: 'https://startlux-decision.com/v1/systemone' } as const;
+export const ENDPOINTS = {
+  openrouter: 'https://openrouter.ai/api/alpha/decisions', systemone: 'https://startlux-decision.com/v1/systemone',
+  'bamboonode-systemone': 'https://api.bamboonode.dev/v1/decisions',
+  'bamboonode-decisions': 'https://api.bamboonode.dev/jev/v1/decisions',
+} as const;
+export const BAMBOONODE_MODELS: Readonly<Record<BambooNodeProviderId, readonly string[]>> = {
+  'bamboonode-systemone': ['startlux-decision-27b-autothink'],
+  'bamboonode-decisions': ['typesafe/jev-1.13', 'typesafe/jev-1.14'],
+};
+export function isBambooNodeProvider(provider: string): provider is BambooNodeProviderId {
+  return provider === 'bamboonode-systemone' || provider === 'bamboonode-decisions';
+}
 const encoder = new TextEncoder();
 export const MAX_REASONING_CHARACTERS = 16_384;
 function b64(bytes: Uint8Array): string { return btoa(Array.from(bytes, b => String.fromCharCode(b)).join('')); }
@@ -36,7 +47,7 @@ export function isPublicAddress(address: string): boolean {
 }
 export async function validateEndpoint(endpoint: string, provider?: ProviderId, options: {resolve?: boolean; fetcher?: typeof fetch; signal?: AbortSignal} = {}): Promise<string> {
   let url: URL; try { url = new URL(endpoint); } catch { throw new Error('Invalid endpoint URL'); }
-  if(provider === 'openrouter' || provider === 'systemone') {
+  if(provider === 'openrouter' || provider === 'systemone' || (provider && isBambooNodeProvider(provider))) {
     if(url.href !== ENDPOINTS[provider]) throw new Error('Built-in provider endpoint cannot be changed; choose a custom provider');
     return url.href;
   }
@@ -119,6 +130,8 @@ async function limitedJson(response: Response): Promise<unknown> {
 export async function decide(profile: ModelProfile, key: string, request: DecisionRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<DecisionResponse> {
   if(!request.actions.length || request.actions.length>1000) throw new Error('Invalid candidate count');
   if(!key || /[\r\n]/.test(key)) throw new Error('Invalid API key');
+  if(/^(?:sk-)?bag_/.test(key.trim()) && !isBambooNodeProvider(profile.provider)) throw new Error('BambooNode application credentials require a fixed BambooNode provider');
+  if(isBambooNodeProvider(profile.provider) && !BAMBOONODE_MODELS[profile.provider].includes(profile.model)) throw new Error('Unsupported BambooNode model');
   if(profile.provider.startsWith('custom-') && !('WebSocketPair' in globalThis)) throw new Error('Custom providers must run through the Cloudflare match service');
   const requestSignal=signal?AbortSignal.any([signal,AbortSignal.timeout(120000)]):AbortSignal.timeout(120000);
   const endpoint=await validateEndpoint(profile.endpoint,profile.provider,{signal:requestSignal});

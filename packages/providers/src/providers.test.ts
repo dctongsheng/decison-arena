@@ -62,3 +62,54 @@ describe('DNS resolver availability',()=>{
   await expect(validateEndpoint('https://service.example.org/v1',undefined,{fetcher:fetcher as typeof fetch})).rejects.toThrow('public');expect(urls).toHaveLength(2);expect(urls.every(u=>u.startsWith('https://cloudflare-dns.com/'))).toBe(true);
  });
 });
+
+describe('BambooNode fixed gateway providers',()=>{
+ afterEach(()=>vi.unstubAllGlobals());
+ const profile=(provider:ModelProfile['provider'],model:string):ModelProfile=>({id:'bamboo-profile',ownerId:'u',name:'BambooNode',credentialId:'bamboo-key',provider,endpoint:ENDPOINTS[provider as keyof typeof ENDPOINTS],model});
+ it.each([
+  ['bamboonode-systemone','startlux-decision-27b-autothink'],
+  ['bamboonode-decisions','typesafe/jev-1.13'],
+  ['bamboonode-decisions','typesafe/jev-1.14'],
+ ] as const)('sends %s/%s only to its fixed gateway and maps the raw gateway answer',async(provider,model)=>{
+  const transport=vi.fn<typeof fetch>(async()=>Response.json({model,answers:{primary_move:{type:'choice',choice:'m1',confidence:0.8,probabilities:{m0:0.2,m1:0.8}}},usage:{input_tokens:21,output_tokens:3}}));
+  vi.stubGlobal('fetch',transport);
+  const result=await decide({...profile(provider,model),thinkMode:'always',thinkBudget:1024},'fixture-bamboo-key',req);
+  expect(transport).toHaveBeenCalledTimes(1);
+  const [url,init]=transport.mock.calls[0];expect(url).toBe(ENDPOINTS[provider]);expect(init?.redirect).toBe('manual');
+  expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer fixture-bamboo-key');
+  const body=JSON.parse(init!.body as string);
+  expect(body.model).toBe(model);expect(body.state).toEqual(req.state);
+  expect(body.questions.primary_move).toEqual({type:'choice',instructions:req.instructions,criteria:{m0:'A',m1:'B'}});
+  expect(result.actionId).toBe('b');expect(result.metrics).toMatchObject({actualModel:model,confidence:0.8,probabilities:{a:0.2,b:0.8},usage:{input_tokens:21,output_tokens:3}});
+  if(provider==='bamboonode-decisions')for(const field of ['think_mode','think_budget','return_thought','return_details'])expect(body).not.toHaveProperty(field);
+ });
+ it.each(['always','auto','never'] as const)('preserves SystemOne thinking policy %s',async thinkMode=>{
+  const transport=vi.fn<typeof fetch>(async()=>Response.json({answers:{primary_move:{choice:'m0'}}}));vi.stubGlobal('fetch',transport);
+  await decide({...profile('bamboonode-systemone','startlux-decision-27b-autothink'),thinkMode,thinkBudget:512},'fixture-bamboo-key',req);
+  expect(JSON.parse(transport.mock.calls[0][1]!.body as string)).toMatchObject({think_mode:thinkMode,think_budget:512,return_details:true,return_thought:thinkMode!=='never'});
+ });
+ it.each([
+  ['bamboonode-systemone','typesafe/jev-1.13'],['bamboonode-decisions','startlux-decision-27b-autothink'],
+  ['bamboonode-decisions','typesafe/jev-1.14-20261014'],['bamboonode-systemone',''],
+ ] as const)('rejects unregistered model %s/%s before any network request',async(provider,model)=>{
+  const transport=vi.fn<typeof fetch>();vi.stubGlobal('fetch',transport);
+  await expect(decide(profile(provider,model),'fixture-bamboo-key',req)).rejects.toThrow('Unsupported BambooNode model');
+  expect(transport).not.toHaveBeenCalled();
+ });
+ it.each(['https://attacker.example.org/v1/decisions','https://api.bamboonode.cn/v1/decisions','http://api.bamboonode.dev/v1/decisions','https://api.bamboonode.dev/v1/decisions?key=fixture','https://api.bamboonode.dev/jev/v1/decisions'])('rejects endpoint replacement %s without DNS or credential egress',async endpoint=>{
+  const transport=vi.fn<typeof fetch>();vi.stubGlobal('fetch',transport);
+  await expect(decide({...profile('bamboonode-systemone','startlux-decision-27b-autothink'),endpoint},'fixture-bamboo-key',req)).rejects.toThrow('endpoint');
+  expect(transport).not.toHaveBeenCalled();
+ });
+ it.each([302,307,401,403,429,500])('does not follow redirects, expose response text or retry HTTP %s',async status=>{
+  const transport=vi.fn<typeof fetch>(async()=>new Response('private upstream detail',{status,headers:{location:'https://attacker.example.org/'}}));vi.stubGlobal('fetch',transport);
+  await expect(decide(profile('bamboonode-decisions','typesafe/jev-1.13'),'fixture-bamboo-key',req)).rejects.toThrow(`Model provider returned HTTP ${status}`);
+  expect(transport).toHaveBeenCalledTimes(1);expect(transport.mock.calls[0][1]?.redirect).toBe('manual');
+ });
+ it.each(['openrouter','systemone','custom-openrouter','custom-systemone'] as const)('does not send a managed app key through %s even if a stored profile is changed',async provider=>{
+  const transport=vi.fn<typeof fetch>();vi.stubGlobal('fetch',transport);
+  const own={...profile(provider,'fixture-model'),endpoint:provider.startsWith('custom-')?'https://attacker.example.org/decisions':ENDPOINTS[provider as 'openrouter'|'systemone']};
+  for(const key of ['sk-bag_fixture-only','bag_fixture-only'])await expect(decide(own,key,req)).rejects.toThrow('fixed BambooNode provider');
+  expect(transport).not.toHaveBeenCalled();
+ });
+});

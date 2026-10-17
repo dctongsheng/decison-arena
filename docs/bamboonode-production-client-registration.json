@@ -5,10 +5,10 @@
   "redirect_uris": [
     "https://arena.startlux-desicion.com/api/auth/oauth2/callback/bamboonode"
   ],
-  "grant_types": ["authorization_code"],
-  "scopes": ["openid", "profile", "email"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "scopes": ["openid", "profile", "email", "quota", "model_gateway"],
   "access_token_ttl": 900,
   "refresh_token_ttl": 3600,
-  "description": "Production login for Decision Arena. Identity only; no quota, model gateway or administrator permissions.",
+  "description": "Production login and explicitly consented model access for Decision Arena. Restricted application gateway uses the user's quota; no administrator permissions.",
   "is_active": true
 }

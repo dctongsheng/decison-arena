@@ -19,7 +19,8 @@ export interface GameAdapter {
   view(state: GameState, viewer: Viewer): GameView;
   restore(state: unknown): GameState;
 }
-export type ProviderId = 'openrouter' | 'systemone' | 'custom-openrouter' | 'custom-systemone';
+export type BambooNodeProviderId = 'bamboonode-systemone' | 'bamboonode-decisions';
+export type ProviderId = 'openrouter' | 'systemone' | 'custom-openrouter' | 'custom-systemone' | BambooNodeProviderId;
 export interface PublicModelProfile { name: string; provider: ProviderId; model: string; thinkMode?: 'never' | 'auto' | 'always'; thinkBudget?: number }
 export interface ModelProfile extends PublicModelProfile { id: string; ownerId: string; endpoint: string; credentialId: string }
 export interface SeatConfig { kind: 'human' | 'ai'; profile?: ModelProfile }

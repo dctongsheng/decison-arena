@@ -1,17 +1,18 @@
 import type {
+  ArcadeReplayV2,
+  ArcadeSession,
+  CreateArcadeInput,
   CreateMatchInput,
   DecisionResponse,
   MatchSnapshot,
   ModelProfile,
   ReplayManifest,
   SeatConfig,
-  ArcadeReplayV2,
-  ArcadeSession,
-  CreateArcadeInput,
 } from '@decision-arena/core';
 import {
   decryptSecret,
   encryptSecret,
+  isBambooNodeProvider,
   maskSecret,
   validateEndpoint,
 } from '@decision-arena/providers';
@@ -28,6 +29,11 @@ import {
 } from 'drizzle-orm';
 import { z } from 'zod';
 
+import {
+  assertBambooProfileAvailable,
+  assertUnmanagedCredential,
+  bambooAvailableModels,
+} from '@/core/arena/bamboonode';
 import { publicReplay, type PublicReplay } from '@/core/arena/public-replay';
 import {
   arenaBindings,
@@ -36,14 +42,14 @@ import {
   vaultMasterKey,
 } from '@/core/arena/runtime';
 import {
+  arcadeCommandInput,
   commandInput,
   communityActionInput,
+  createArcadeInput,
   createMatchInput,
   credentialInput,
   profileInput,
   publicationInput,
-  createArcadeInput,
-  arcadeCommandInput,
 } from '@/core/arena/validation';
 import { matchPermission, RoleStatus } from '@/core/auth/rbac';
 import { db } from '@/core/db';
@@ -109,6 +115,12 @@ export async function listCredentials(ownerId: string) {
 
 export async function saveCredential(ownerId: string, input: unknown) {
   const data = credentialInput.parse(input);
+  if (data.id) await assertUnmanagedCredential(ownerId, data.id);
+  if (/^(?:sk-)?bag_/.test(data.apiKey))
+    throw new ArenaError(
+      'Use your BambooNode account connection for this credential.',
+      403
+    );
   const ciphertext = await encryptSecret(
     data.apiKey,
     vaultMasterKey(),
@@ -161,6 +173,7 @@ async function ownCredential(ownerId: string, id: string) {
 
 export async function deleteCredential(ownerId: string, id: string) {
   await ownCredential(ownerId, id);
+  await assertUnmanagedCredential(ownerId, id);
   // Revocation is immediate even if a saved profile still refers to this key.
   await db()
     .update(arenaCredential)
@@ -188,7 +201,10 @@ async function ownProfile(
     )
     .limit(1);
   if (!row) throw new ArenaError('Model profile not found.', 404);
-  if (requireCredential) await ownCredential(ownerId, row.credentialId);
+  if (requireCredential) {
+    await ownCredential(ownerId, row.credentialId);
+    await assertBambooProfileAvailable(ownerId, runnerProfile(row));
+  }
   return row;
 }
 
@@ -233,11 +249,26 @@ export async function listProfiles(ownerId: string) {
       )
     )
     .orderBy(desc(arenaProfile.createdAt));
-  return { items: rows };
+  const available = await bambooAvailableModels(ownerId);
+  return {
+    items: rows.map((row: (typeof rows)[number]) => ({
+      ...row,
+      source: isBambooNodeProvider(row.provider) ? 'bamboonode' : 'manual',
+      available:
+        !row.credentialRevokedAt &&
+        (!isBambooNodeProvider(row.provider) || available.includes(row.model)),
+    })),
+  };
 }
 
 async function normalizeProfile(ownerId: string, input: unknown) {
   const data = profileInput.parse(input);
+  if (data.credentialId)
+    await assertUnmanagedCredential(ownerId, data.credentialId);
+  if (data.id) {
+    const saved = await ownProfile(ownerId, data.id, false);
+    await assertUnmanagedCredential(ownerId, saved.credentialId);
+  }
   const endpoint =
     data.provider === 'openrouter'
       ? 'https://openrouter.ai/api/alpha/decisions'
@@ -335,6 +366,7 @@ export async function deleteProfile(ownerId: string, id: string) {
     )
     .limit(1);
   if (!row) throw new ArenaError('Model profile not found.', 404);
+  await assertUnmanagedCredential(ownerId, row.credentialId);
   await db()
     .update(arenaProfile)
     .set({ deletedAt: Date.now() })
@@ -431,7 +463,12 @@ export async function listMatches(ownerId: string) {
   const rows = await db()
     .select()
     .from(arenaMatch)
-    .where(and(eq(arenaMatch.ownerId, ownerId), inArray(arenaMatch.gameId, ['gomoku', 'xiangqi', 'army'])))
+    .where(
+      and(
+        eq(arenaMatch.ownerId, ownerId),
+        inArray(arenaMatch.gameId, ['gomoku', 'xiangqi', 'army'])
+      )
+    )
     .orderBy(desc(arenaMatch.updatedAt))
     .limit(100);
   return {
@@ -456,7 +493,8 @@ export async function createMatch(ownerId: string, input: unknown) {
   const source = sourcePost
     ? await readPublicationReplay(sourcePost)
     : undefined;
-  if (source && source.version !== 1) throw new ArenaError('Use the arcade creator for this replay.');
+  if (source && source.version !== 1)
+    throw new ArenaError('Use the arcade creator for this replay.');
   const seats: SeatConfig[] = [];
   for (const [index, seat] of data.seats.entries()) {
     const sourceSeat = source?.seats[index];
@@ -484,6 +522,7 @@ export async function createMatch(ownerId: string, input: unknown) {
         selected.thinkMode = sourceSeat.profile.thinkMode;
         selected.thinkBudget = sourceSeat.profile.thinkBudget;
       }
+      await assertBambooProfileAvailable(ownerId, selected);
       seats.push({ kind: 'ai', profile: selected });
     }
   }
@@ -520,54 +559,106 @@ export async function getReplay(ownerId: string, id: string) {
 }
 
 export async function listArcadeSessions(ownerId: string) {
-  const rows = await db().select().from(arenaMatch)
-    .where(and(eq(arenaMatch.ownerId, ownerId), inArray(arenaMatch.gameId, ['snake', 'tetris', 'platformer'])))
-    .orderBy(desc(arenaMatch.updatedAt)).limit(100);
-  return { items: rows.map((row: typeof arenaMatch.$inferSelect) => ({ ...JSON.parse(row.summaryJson), id: row.id,
-    engineKind: 'arcade', gameId: row.gameId, status: row.status, createdAt: row.createdAt,
-    updatedAt: row.updatedAt, result: row.resultJson ? JSON.parse(row.resultJson) : undefined })) };
+  const rows = await db()
+    .select()
+    .from(arenaMatch)
+    .where(
+      and(
+        eq(arenaMatch.ownerId, ownerId),
+        inArray(arenaMatch.gameId, ['snake', 'tetris', 'platformer'])
+      )
+    )
+    .orderBy(desc(arenaMatch.updatedAt))
+    .limit(100);
+  return {
+    items: rows.map((row: typeof arenaMatch.$inferSelect) => ({
+      ...JSON.parse(row.summaryJson),
+      id: row.id,
+      engineKind: 'arcade',
+      gameId: row.gameId,
+      status: row.status,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      result: row.resultJson ? JSON.parse(row.resultJson) : undefined,
+    })),
+  };
 }
 
 export async function createArcadeSession(ownerId: string, input: unknown) {
   const data = createArcadeInput.parse(input);
   const sourcePost = data.cloneId ? await publication(data.cloneId) : undefined;
-  const source = sourcePost ? await readPublicationReplay(sourcePost) : undefined;
-  if (source && source.version !== 2) throw new ArenaError('Use the chess creator for this replay.');
-  if (source && (source.mode !== data.mode || source.controllers.length !== data.controllers.length))
-    throw new ArenaError('Cloned challenges must keep the original controller types.');
+  const source = sourcePost
+    ? await readPublicationReplay(sourcePost)
+    : undefined;
+  if (source && source.version !== 2)
+    throw new ArenaError('Use the chess creator for this replay.');
+  if (
+    source &&
+    (source.mode !== data.mode ||
+      source.controllers.length !== data.controllers.length)
+  )
+    throw new ArenaError(
+      'Cloned challenges must keep the original controller types.'
+    );
   const controllers: SeatConfig[] = [];
   for (const [index, controller] of data.controllers.entries()) {
     const original = source?.controllers[index];
     if (original && original.kind !== controller.kind)
-      throw new ArenaError('Cloned challenges must keep the original controller types.');
-    if (controller.kind === 'human') { controllers.push({ kind: 'human' }); continue; }
-    const selected = runnerProfile(await ownProfile(ownerId, controller.profileId!));
+      throw new ArenaError(
+        'Cloned challenges must keep the original controller types.'
+      );
+    if (controller.kind === 'human') {
+      controllers.push({ kind: 'human' });
+      continue;
+    }
+    const selected = runnerProfile(
+      await ownProfile(ownerId, controller.profileId!)
+    );
     if (original) {
       if (!original.profile || original.profile.provider !== selected.provider)
-        throw new ArenaError('Choose your own credentials for the original provider.');
+        throw new ArenaError(
+          'Choose your own credentials for the original provider.'
+        );
       // Only public model parameters are copied. The endpoint/key remain this owner's.
       selected.name = original.profile.name;
       selected.model = original.profile.model;
     }
     // Realtime controls always disable thinking, including cloned older challenges.
     // This is a per-session copy; the saved profile still serves chess unchanged.
+    await assertBambooProfileAvailable(ownerId, selected);
     selected.thinkMode = 'never';
     controllers.push({ kind: 'ai', profile: selected });
   }
   if (sourcePost && (await publication(sourcePost.id)).status !== 'published')
     throw new ArenaError('Community replay not found.', 404);
-  const payload: CreateArcadeInput = { gameId: source?.gameId ?? data.gameId,
-    mode: source?.mode ?? data.mode, config: source?.config ?? data.config,
-    seed: source?.seed ?? data.seed, controllers };
-  return runnerJson<ArcadeSession>(ownerId, '/arcade-sessions', { method: 'POST', body: JSON.stringify(payload) });
+  const payload: CreateArcadeInput = {
+    gameId: source?.gameId ?? data.gameId,
+    mode: source?.mode ?? data.mode,
+    config: source?.config ?? data.config,
+    seed: source?.seed ?? data.seed,
+    controllers,
+  };
+  return runnerJson<ArcadeSession>(ownerId, '/arcade-sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
-export async function getArcadeSession(ownerId: string, id: string, query = '') {
+export async function getArcadeSession(
+  ownerId: string,
+  id: string,
+  query = ''
+) {
   return runnerJson<ArcadeSession>(ownerId, `/arcade-sessions/${id}${query}`);
 }
-export async function commandArcadeSession(ownerId: string, id: string, input: unknown) {
+export async function commandArcadeSession(
+  ownerId: string,
+  id: string,
+  input: unknown
+) {
   return runnerJson<ArcadeSession>(ownerId, `/arcade-sessions/${id}/commands`, {
-    method: 'POST', body: JSON.stringify(arcadeCommandInput.parse(input)),
+    method: 'POST',
+    body: JSON.stringify(arcadeCommandInput.parse(input)),
   });
 }
 export async function getArcadeReplay(ownerId: string, id: string) {
@@ -750,7 +841,11 @@ export async function publishReplay(ownerId: string, input: unknown) {
   if (existing?.status === 'removed')
     throw new ArenaError('This replay was removed by a moderator.', 403);
   const isArcade = JSON.parse(match.summaryJson).engineKind === 'arcade';
-  const replay = publicReplay(await (isArcade ? getArcadeReplay(ownerId, data.matchId) : getReplay(ownerId, data.matchId)));
+  const replay = publicReplay(
+    await (isArcade
+      ? getArcadeReplay(ownerId, data.matchId)
+      : getReplay(ownerId, data.matchId))
+  );
   if (replay.matchId !== data.matchId)
     throw new ArenaError('Replay identity does not match.', 502);
   const serialized = JSON.stringify(replay);
@@ -772,9 +867,17 @@ export async function publishReplay(ownerId: string, input: unknown) {
     status: 'published',
     replayKey,
     replayJson: bucket ? null : serialized,
-    summaryJson: JSON.stringify(replay.version === 2
-      ? { engineKind: 'arcade', mode: replay.mode, result: replay.result, seats: replay.controllers, controllers: replay.controllers }
-      : { result: replay.result, seats: replay.seats }),
+    summaryJson: JSON.stringify(
+      replay.version === 2
+        ? {
+            engineKind: 'arcade',
+            mode: replay.mode,
+            result: replay.result,
+            seats: replay.controllers,
+            controllers: replay.controllers,
+          }
+        : { result: replay.result, seats: replay.seats }
+    ),
     updatedAt: now,
   };
   if (existing)

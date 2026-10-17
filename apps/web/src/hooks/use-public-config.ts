@@ -32,6 +32,7 @@ export type PublicConfig = Partial<
 > & {
   auth_mode?: 'local' | 'bamboonode';
   bamboonode_auth_ready?: boolean;
+  bamboonode_scope_upgrade_required?: boolean;
 };
 
 // Public runtime config (auth methods, social login ids, …) — shared by

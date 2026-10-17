@@ -16,9 +16,12 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { apiDelete, apiPost } from '@/lib/api-client';
+import { m } from '@/paraglide/messages.js';
 import { TextField } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 
+import { canEditModel } from './bamboonode-access';
+import { BambooModelConnection } from './bamboonode-connection';
 import {
   ArenaShell,
   AuthGate,
@@ -44,6 +47,7 @@ export function ModelsPage() {
   return (
     <ArenaShell>
       <AuthGate>
+        <BambooModelConnection />
         <ModelsContent />
       </AuthGate>
     </ArenaShell>
@@ -366,16 +370,26 @@ function ModelsContent() {
                 <span className="arena-icon-box">
                   <KeyRound size={22} />
                 </span>
-                <span className="arena-tag">{model.provider}</span>
+                <span className="arena-tag">
+                  {model.source === 'bamboonode'
+                    ? m['arena.bamboo.model_source']()
+                    : model.provider}
+                </span>
               </div>
               <h3>{model.name}</h3>
               <p className="arena-model-id">{model.model || 'System One'}</p>
               <dl>
                 <div>
-                  <dt>{t('models.credential')}</dt>
+                  <dt>
+                    {model.source === 'bamboonode'
+                      ? m['arena.bamboo.billing']()
+                      : t('models.credential')}
+                  </dt>
                   <dd>
                     <LockKeyhole size={12} />
-                    {model.keyMask || '••••••••'}
+                    {model.source === 'bamboonode'
+                      ? m['arena.bamboo.own_quota']()
+                      : model.keyMask || '••••••••'}
                   </dd>
                 </div>
                 <div>
@@ -387,6 +401,11 @@ function ModelsContent() {
                   </dd>
                 </div>
               </dl>
+              {!canEditModel(model) && (
+                <p className="arena-field-help">
+                  {m['arena.bamboo.managed_profile']()}
+                </p>
+              )}
               <div className="arena-model-card-footer">
                 {deleteId === model.id ? (
                   <>
@@ -411,43 +430,47 @@ function ModelsContent() {
                   <>
                     <span>
                       <span className="arena-dot" />
-                      {t('models.ready')}
+                      {model.available === false
+                        ? m['arena.bamboo.model_unavailable']()
+                        : t('models.ready')}
                     </span>
-                    <div className="arena-model-card-tools">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('models.edit')}
-                        onClick={() => {
-                          setOpen(true);
-                          setEditId(model.id);
-                          form.reset({
-                            ...defaults,
-                            name: model.name,
-                            provider: model.provider,
-                            model: model.model,
-                            endpoint: model.endpoint,
-                            thinkMode: model.thinkMode || 'always',
-                            thinkBudget: model.thinkBudget || 4096,
-                          });
-                          setTested(null);
-                          setTestInfo(null);
-                          save.reset();
-                          test.reset();
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                      >
-                        <Pencil size={15} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('models.delete')}
-                        onClick={() => setDeleteId(model.id)}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
+                    {canEditModel(model) && (
+                      <div className="arena-model-card-tools">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('models.edit')}
+                          onClick={() => {
+                            setOpen(true);
+                            setEditId(model.id);
+                            form.reset({
+                              ...defaults,
+                              name: model.name,
+                              provider: model.provider,
+                              model: model.model,
+                              endpoint: model.endpoint,
+                              thinkMode: model.thinkMode || 'always',
+                              thinkBudget: model.thinkBudget || 4096,
+                            });
+                            setTested(null);
+                            setTestInfo(null);
+                            save.reset();
+                            test.reset();
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        >
+                          <Pencil size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('models.delete')}
+                          onClick={() => setDeleteId(model.id)}
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

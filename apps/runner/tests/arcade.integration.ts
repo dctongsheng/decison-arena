@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { Miniflare, Log, LogLevel, Response as MockResponse, type MiniflareOptions } from 'miniflare';
 import type { ArcadeReplayV2, ArcadeSession, ModelProfile, SeatConfig } from '@decision-arena/core';
 import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame } from '@decision-arena/games';
-import { encryptSecret } from '@decision-arena/providers';
+import { encryptSecret, ENDPOINTS } from '@decision-arena/providers';
 import { canObserveAfterInput, canSendObservedDecision } from '../src/arcade-scheduling';
 
 const master = 'fixture-arcade-master-do-not-use-in-production', internal = 'fixture-arcade-internal', owner = 'arcade-fixture-alice', stranger = 'arcade-fixture-bob';
@@ -42,6 +42,12 @@ async function profile(account = owner): Promise<ModelProfile> {
   const id = crypto.randomUUID(), ciphertext = await encryptSecret('fixture-model-secret', master, account);
   await db.prepare('INSERT INTO arena_credentials(id,owner_id,name,ciphertext,masked,created_at) VALUES(?,?,?,?,?,?)').bind(id, account, 'fixture', ciphertext, 'fixture-mask', Date.now()).run();
   return { id: crypto.randomUUID(), ownerId: account, credentialId: id, provider: 'openrouter', endpoint: 'https://openrouter.ai/api/alpha/decisions', model: 'fixture-model', name: 'Fixture model' };
+}
+async function bambooProfile(): Promise<ModelProfile> {
+  const own: ModelProfile = { ...await profile(), provider: 'bamboonode-systemone', endpoint: ENDPOINTS['bamboonode-systemone'], model: 'startlux-decision-27b-autothink', thinkMode: 'always', thinkBudget: 512 };
+  await db.prepare('INSERT OR REPLACE INTO arena_bamboo_connections(owner_id,credential_id,status,expires_at,models_json) VALUES(?,?,?,?,?)')
+    .bind(owner, own.credentialId, 'connected', Date.now() + 60_000, JSON.stringify([own.model])).run();
+  return own;
 }
 async function socket(id: string) {
   const response = await mf.dispatchFetch(`https://arcade.test/arcade-sessions/${id}/socket`, { headers: { 'X-Arena-Owner': owner, 'X-Arena-Internal': internal, Upgrade: 'websocket' } });
@@ -85,7 +91,7 @@ beforeAll(async () => {
     durableObjects: { MATCHES: { className: 'MatchObject', useSQLite: true }, USER_QUOTAS: { className: 'UserQuota', useSQLite: true }, ARCADES: { className: 'ArcadeSessionObject', useSQLite: true } },
     d1Databases: ['DB'], r2Buckets: ['REPLAYS'], durableObjectsPersist: resolve(persistence, 'do'), d1Persist: resolve(persistence, 'd1'), r2Persist: resolve(persistence, 'r2'),
     outboundService: async req => {
-      if (!['https://openrouter.ai/api/alpha/decisions', 'https://startlux-decision.com/v1/systemone'].includes(req.url)) throw new Error('Unexpected fixture outbound request');
+      if (!Object.values(ENDPOINTS).some(endpoint => endpoint === req.url)) throw new Error('Unexpected fixture outbound request');
       const body = await req.json(), index = calls.push(body) - 1;
       active++; peak = Math.max(peak, active);
       try { return await reply(body, index); } finally { active--; }
@@ -95,6 +101,7 @@ beforeAll(async () => {
   const statements = readFileSync(resolve('apps/web/drizzle/0000_powerful_solo.sql'), 'utf8').split('--> statement-breakpoint').map(sql => sql.trim());
   for (const name of ['user', 'arena_credentials', 'arena_matches']) await db.prepare(statements.find(sql => sql.startsWith(`CREATE TABLE \`${name}\``))!).run();
   for (const id of [owner, stranger]) await db.prepare('INSERT INTO user(id,name,email) VALUES(?,?,?)').bind(id, id, `${id}@example.test`).run();
+  await db.prepare('CREATE TABLE arena_bamboo_connections(owner_id TEXT PRIMARY KEY, credential_id TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL, models_json TEXT NOT NULL)').run();
 });
 beforeEach(() => { calls = []; active = 0; peak = 0; reply = async body => success(body); });
 afterEach(async () => {
@@ -106,6 +113,73 @@ afterEach(async () => {
 afterAll(async () => { await mf?.dispose(); rmSync(persistence, { recursive: true, force: true }); });
 
 describe('real-time ArcadeSessionObject in workerd (fixture providers only)', () => {
+  it('requires an active owner-and-credential-bound BambooNode connection before creating an arcade session', async () => {
+    for (const condition of ['missing', 'expired', 'disconnected', 'foreign-owner', 'different-key', 'model-removed']) {
+      const own = await bambooProfile();
+      if (condition === 'missing') await db.prepare('DELETE FROM arena_bamboo_connections').run();
+      if (condition === 'expired') await db.prepare('UPDATE arena_bamboo_connections SET expires_at=? WHERE owner_id=?').bind(Date.now() - 1, owner).run();
+      if (condition === 'disconnected') await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+      if (condition === 'foreign-owner') { await db.prepare('DELETE FROM arena_bamboo_connections WHERE owner_id=?').bind(stranger).run(); await db.prepare('UPDATE arena_bamboo_connections SET owner_id=? WHERE owner_id=?').bind(stranger, owner).run(); }
+      if (condition === 'different-key') await db.prepare('UPDATE arena_bamboo_connections SET credential_id=? WHERE owner_id=?').bind(crypto.randomUUID(), owner).run();
+      if (condition === 'model-removed') await db.prepare("UPDATE arena_bamboo_connections SET models_json='[]' WHERE owner_id=?").bind(owner).run();
+      const response = await request('/arcade-sessions', { gameId: 'snake', mode: 'ai-solo', config: {}, controllers: [{ kind: 'ai', profile: own }] });
+      expect(response.status, condition).toBe(400); expect(calls).toHaveLength(0);
+    }
+  });
+
+  it.each(['snake', 'tetris', 'platformer'])('keeps BambooNode %s requests no-thinking and discards a response after local disconnection', async game => {
+    const own = await bambooProfile(), blocker = gate(); reply = async body => { await blocker.promise; return success(body); };
+    const session = await create([{ kind: 'ai', profile: own }], game);
+    expect((await command(session.id, 'start')).status).toBe(200);
+    await until(() => calls.length === 1, 'BambooNode arcade request');
+    expect(calls[0]).toMatchObject({ model: own.model, think_mode: 'never', return_thought: false, think_budget: 512 });
+    await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+    blocker.release();
+    await until(async () => (await snapshot(session.id)).status === 'paused', 'disconnected arcade model pauses');
+    const current = await snapshot(session.id);
+    expect(current.events.filter(event => event.type === 'input' && !event.release && event.runId === current.runs[0].id)).toHaveLength(0);
+    expect(current.runs[0].lastDecision?.outcome).toBe('failed'); expect(calls).toHaveLength(1);
+  });
+
+  it.each(['snake', 'tetris', 'platformer'].flatMap(game => [false, true].map(changedKey => ({ game, changedKey }))))('binds a delayed $game result to the sent BambooNode key (new key=$changedKey)', async ({ game, changedKey }) => {
+    const own = await bambooProfile(), blocker = gate(), following = gate();
+    reply = async (body, index) => { await (index === 0 ? blocker.promise : following.promise); return success(body); };
+    const session = await create([{ kind: 'ai', profile: own }], game);
+    expect((await command(session.id, 'start')).status).toBe(200);
+    await until(() => calls.length === 1, 'BambooNode arcade inference starts before key update');
+    const previous = await db.prepare('SELECT ciphertext FROM arena_credentials WHERE id=?').bind(own.credentialId).first<{ ciphertext: string }>();
+    if (changedKey) {
+      await db.prepare("UPDATE arena_bamboo_connections SET status='disconnected' WHERE owner_id=?").bind(owner).run();
+      await db.prepare("UPDATE arena_credentials SET ciphertext='',deleted_at=? WHERE id=?").bind(Date.now(), own.credentialId).run();
+    }
+    const ciphertext = await encryptSecret(changedKey ? 'fixture-reconnected-arcade-key' : 'fixture-model-secret', master, owner);
+    expect(ciphertext).not.toBe(previous!.ciphertext);
+    await db.prepare('UPDATE arena_credentials SET ciphertext=?,deleted_at=NULL WHERE id=?').bind(ciphertext, own.credentialId).run();
+    await db.prepare("UPDATE arena_bamboo_connections SET status='connected' WHERE owner_id=?").bind(owner).run();
+    blocker.release();
+    await until(async () => (await snapshot(session.id)).runs[0].lastDecision?.outcome === (changedKey ? 'failed' : 'applied'), 'BambooNode arcade response validates the actual key');
+    const current = await snapshot(session.id);
+    const decisions = current.events.filter(event => event.type === 'decision');
+    expect(decisions[0].outcome).toBe(changedKey ? 'failed' : 'applied');
+    expect(current.events.filter(event => event.type === 'input' && !event.release)).toHaveLength(changedKey ? 0 : 1);
+    expect(current.status).toBe(changedKey ? 'paused' : 'running');
+    if (changedKey) { expect(current.error).toContain('BambooNode authorization changed'); expect(calls).toHaveLength(1); }
+    // Stop before releasing any following fixture so it cannot add more controls.
+    await command(session.id, 'end'); following.release();
+  });
+
+  it('rechecks BambooNode expiry and catalog removal after creation before dispatching any arcade request', async () => {
+    for (const condition of ['expired', 'model-removed']) {
+      const own = await bambooProfile(), session = await create([{ kind: 'ai', profile: own }], 'tetris');
+      if (condition === 'expired') await db.prepare('UPDATE arena_bamboo_connections SET expires_at=? WHERE owner_id=?').bind(Date.now() - 1, owner).run();
+      else await db.prepare("UPDATE arena_bamboo_connections SET models_json='[]' WHERE owner_id=?").bind(owner).run();
+      expect((await command(session.id, 'start')).status).toBe(200);
+      await until(async () => (await snapshot(session.id)).status === 'paused', 'invalid authorization pauses arcade session');
+      expect((await snapshot(session.id)).runs[0].lastDecision?.outcome).toBe('failed'); expect(calls).toHaveLength(0);
+      await command(session.id, 'end');
+    }
+  });
+
   it('simulates new Snake sessions at three cells per second and sends the same speed to the model', async () => {
     const blocker = gate(); reply = async body => { await blocker.promise; return success(body, '向右'); };
     const own = await profile(), session = await create([{ kind: 'ai', profile: own }], 'snake');

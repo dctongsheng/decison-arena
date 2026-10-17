@@ -1,13 +1,41 @@
 import type { BetterAuthOptions } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
+import {
+  symmetricDecrypt,
+  symmetricEncrypt,
+  type SecretConfig,
+} from 'better-auth/crypto';
 import { genericOAuth } from 'better-auth/plugins';
 import type { GenericOAuthConfig } from 'better-auth/plugins/generic-oauth';
 import { z } from 'zod';
 
 export const BAMBOO_ISSUER = 'https://api.bamboonode.dev';
 export const BAMBOO_FRONTEND = 'https://bamboonode.dev';
-const SCOPES = ['openid', 'profile', 'email'];
+export const BAMBOO_REQUIRED_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'quota',
+  'model_gateway',
+] as const;
+const SCOPES: readonly string[] = BAMBOO_REQUIRED_SCOPES;
 const MAX_RESPONSE_BYTES = 16_384;
+
+/** Better Auth stores scope as CSV; provider responses use space-delimited scope. */
+export function hasBambooGatewayScopes(
+  scope: string | readonly string[] | null | undefined
+): boolean {
+  const values =
+    typeof scope === 'string' ? scope.split(/[\s,]+/) : scope || [];
+  return SCOPES.every((required) => values.includes(required));
+}
+
+function scopeUpgradeRequired(env: Record<string, string>) {
+  return Boolean(
+    env.bamboonode_scopes &&
+    !hasBambooGatewayScopes(env.bamboonode_scopes.split(/\s+/))
+  );
+}
 
 export function authMode(env: Record<string, string>): 'local' | 'bamboonode' {
   const mode = env.auth_mode || 'local';
@@ -97,6 +125,8 @@ export function publicBambooAuth(env: Record<string, string>) {
     auth_mode: mode,
     bamboonode_auth_ready:
       mode === 'bamboonode' && bambooSettings(env) !== null,
+    bamboonode_scope_upgrade_required:
+      mode === 'bamboonode' && scopeUpgradeRequired(env),
     ...(accountUrl ? { bamboonode_account_url: accountUrl } : {}),
     ...(mode === 'bamboonode'
       ? {
@@ -181,6 +211,177 @@ const identitySchema = z.object({
   picture: z.string().max(2048).optional(),
 });
 
+export interface BambooOAuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: Date;
+  refreshTokenExpiresAt?: Date;
+  scopes: string[];
+}
+
+function tokenResponse(result: Record<string, unknown>): BambooOAuthTokens {
+  const access = accessTokenSchema.safeParse(result.access_token);
+  const refresh = accessTokenSchema.safeParse(result.refresh_token);
+  if (
+    !access.success ||
+    !refresh.success ||
+    typeof result.token_type !== 'string' ||
+    result.token_type.toLowerCase() !== 'bearer'
+  )
+    throw new Error('Invalid BambooNode token response.');
+  const expiresAt = (seconds: unknown): Date => {
+    if (
+      typeof seconds !== 'number' ||
+      !Number.isSafeInteger(seconds) ||
+      seconds <= 0 ||
+      seconds > 31_536_000
+    )
+      throw new Error('Invalid BambooNode token expiry.');
+    return new Date(Date.now() + seconds * 1000);
+  };
+  // Missing/partial scope must never inherit the requested privileges. The
+  // connection service asks for explicit reauthorization when scope is absent.
+  if (
+    result.scope !== undefined &&
+    (typeof result.scope !== 'string' ||
+      result.scope.length > 2048 ||
+      !/^[\x20-\x21\x23-\x5b\x5d-\x7e]*$/.test(result.scope))
+  )
+    throw new Error('Invalid BambooNode token scope.');
+  const scopes = [
+    ...new Set(
+      ((result.scope as string | undefined) || '').split(' ').filter(Boolean)
+    ),
+  ];
+  if (scopes.some((scope) => !SCOPES.includes(scope)))
+    throw new Error('Invalid BambooNode token scope.');
+  return {
+    accessToken: access.data,
+    refreshToken: refresh.data,
+    accessTokenExpiresAt: expiresAt(result.expires_in),
+    ...(result.refresh_token_expires_in !== undefined
+      ? { refreshTokenExpiresAt: expiresAt(result.refresh_token_expires_in) }
+      : {}),
+    scopes,
+  };
+}
+
+async function exchangeBambooToken(
+  settings: BambooSettings,
+  data: URLSearchParams,
+  fetcher: typeof fetch
+): Promise<BambooOAuthTokens> {
+  // Recheck the destination even for internal callers: credentials never leave
+  // the explicitly configured .dev API origin, including through redirects.
+  trustedUrl(settings.tokenUrl, BAMBOO_ISSUER);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Accept: 'application/json',
+  };
+  if (settings.authentication === 'basic') {
+    headers.Authorization = `Basic ${btoa(`${encodeURIComponent(settings.clientId)}:${encodeURIComponent(settings.clientSecret)}`)}`;
+  } else {
+    data.set('client_id', settings.clientId);
+    data.set('client_secret', settings.clientSecret);
+  }
+  return tokenResponse(
+    await providerJson(fetcher, settings.tokenUrl, {
+      method: 'POST',
+      headers,
+      body: data.toString(),
+    })
+  );
+}
+
+/**
+ * One rotating refresh request, with no automatic retry. The caller must claim
+ * its owner/account row before calling and CAS against the old encrypted token
+ * when saving; a timeout or failed CAS requires explicit reauthorization.
+ */
+export async function refreshBambooTokens(
+  settings: BambooSettings,
+  refreshToken: string,
+  fetcher: typeof fetch = fetch
+): Promise<BambooOAuthTokens> {
+  if (!accessTokenSchema.safeParse(refreshToken).success)
+    throw new Error('Invalid BambooNode refresh token.');
+  return exchangeBambooToken(
+    settings,
+    new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }),
+    fetcher
+  );
+}
+
+/** Use the key from (await getAuth().$context).secretConfig. Server only. */
+export async function encryptBambooToken(
+  token: string,
+  key: string | SecretConfig
+) {
+  if (!accessTokenSchema.safeParse(token).success)
+    throw new Error('Invalid BambooNode OAuth token.');
+  try {
+    return await symmetricEncrypt({ key, data: token });
+  } catch {
+    throw new Error('Unable to encrypt BambooNode OAuth token.');
+  }
+}
+
+/** Never accept plaintext legacy rows or reflect ciphertext/provider data. */
+export async function decryptBambooToken(
+  ciphertext: string,
+  key: string | SecretConfig
+) {
+  try {
+    if (
+      ciphertext.length > 32_768 ||
+      !/^(?:\$ba\$\d+\$)?(?:[a-f\d]{2}){41,}$/i.test(ciphertext)
+    )
+      throw new Error();
+    const token = await symmetricDecrypt({ key, data: ciphertext });
+    if (!accessTokenSchema.safeParse(token).success) throw new Error();
+    return token;
+  } catch {
+    throw new Error('Unable to decrypt BambooNode OAuth token; reauthorize.');
+  }
+}
+
+/** The authenticated HTTPS userinfo subject is the only trusted identity. */
+export async function getBambooIdentity(
+  settings: BambooSettings,
+  accessToken: string,
+  fetcher: typeof fetch = fetch
+) {
+  const token = accessTokenSchema.safeParse(accessToken);
+  if (!token.success) throw new Error('Invalid BambooNode access token.');
+  trustedUrl(settings.userInfoUrl, BAMBOO_ISSUER);
+  const response = await providerJson(fetcher, settings.userInfoUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token.data}`,
+      Accept: 'application/json',
+    },
+  });
+  const parsed = identitySchema.safeParse(response);
+  if (!parsed.success) throw new Error('Invalid BambooNode user identity.');
+  const user = parsed.data;
+  let image: string | undefined;
+  try {
+    const url = new URL(user.picture || '');
+    if (url.protocol === 'https:' && !url.username && !url.password)
+      image = url.href;
+  } catch {}
+  return {
+    id: user.sub,
+    email: user.email.toLowerCase(),
+    emailVerified: user.email_verified === true,
+    name: user.name?.trim() || user.email.split('@')[0],
+    ...(image ? { image } : {}),
+  };
+}
+
 /** Never use the 1.6.2 plugin's decode-only id_token path for identity. */
 export function bambooProvider(
   settings: BambooSettings,
@@ -190,6 +391,7 @@ export function bambooProvider(
     providerId: 'bamboonode',
     ...settings,
     pkce: true,
+    prompt: 'consent',
     getToken: async ({ code, redirectURI, codeVerifier }) => {
       if (
         !code ||
@@ -204,72 +406,10 @@ export function bambooProvider(
         redirect_uri: redirectURI,
         code_verifier: codeVerifier,
       });
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      };
-      if (settings.authentication === 'basic') {
-        headers.Authorization = `Basic ${btoa(`${encodeURIComponent(settings.clientId)}:${encodeURIComponent(settings.clientSecret)}`)}`;
-      } else {
-        data.set('client_id', settings.clientId);
-        data.set('client_secret', settings.clientSecret);
-      }
-      const result = await providerJson(fetcher, settings.tokenUrl, {
-        method: 'POST',
-        headers,
-        body: data.toString(),
-      });
-      const parsed = accessTokenSchema.safeParse(result.access_token);
-      if (
-        !parsed.success ||
-        typeof result.token_type !== 'string' ||
-        result.token_type.toLowerCase() !== 'bearer'
-      )
-        throw new Error('Invalid BambooNode token response.');
-      const expires = result.expires_in;
-      if (
-        expires !== undefined &&
-        (typeof expires !== 'number' ||
-          !Number.isFinite(expires) ||
-          expires <= 0 ||
-          expires > 31_536_000)
-      )
-        throw new Error('Invalid BambooNode token expiry.');
-      return {
-        accessToken: parsed.data,
-        ...(typeof expires === 'number'
-          ? { accessTokenExpiresAt: new Date(Date.now() + expires * 1000) }
-          : {}),
-        scopes: settings.scopes,
-        // Refresh/id tokens are not needed for login and are deliberately discarded.
-      };
+      return exchangeBambooToken(settings, data, fetcher);
     },
     getUserInfo: async (tokens) => {
-      const token = accessTokenSchema.safeParse(tokens.accessToken);
-      if (!token.success) throw new Error('Invalid BambooNode access token.');
-      const response = await providerJson(fetcher, settings.userInfoUrl, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token.data}`,
-          Accept: 'application/json',
-        },
-      });
-      const parsed = identitySchema.safeParse(response);
-      if (!parsed.success) throw new Error('Invalid BambooNode user identity.');
-      const user = parsed.data;
-      let image: string | undefined;
-      try {
-        const url = new URL(user.picture || '');
-        if (url.protocol === 'https:' && !url.username && !url.password)
-          image = url.href;
-      } catch {}
-      return {
-        id: user.sub,
-        email: user.email.toLowerCase(),
-        emailVerified: user.email_verified === true,
-        name: user.name?.trim() || user.email.split('@')[0],
-        ...(image ? { image } : {}),
-      };
+      return getBambooIdentity(settings, tokens.accessToken || '', fetcher);
     },
   };
 }
@@ -286,6 +426,7 @@ export function bambooAuthOptions(
       : [],
     account: {
       encryptOAuthTokens: true,
+      updateAccountOnSignIn: true,
       storeStateStrategy: 'database',
       skipStateCookieCheck: false,
       accountLinking: {
@@ -312,18 +453,23 @@ export function bambooAuthOptions(
       '/one-tap/callback',
       '/get-access-token',
       '/refresh-token',
+      // This endpoint internally refreshes tokens without the connection lock.
+      '/account-info',
     ],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/sign-in/oauth2') {
           if (!settings)
             throw new APIError('SERVICE_UNAVAILABLE', {
-              message: 'BambooNode authentication is not configured.',
+              message: scopeUpgradeRequired(env)
+                ? 'BambooNode scope configuration must include quota and model_gateway; update configuration and reauthorize.'
+                : 'BambooNode authentication is not configured.',
             });
           if (
             ctx.body?.providerId !== 'bamboonode' ||
             (ctx.body?.scopes &&
               (!Array.isArray(ctx.body.scopes) ||
+                !hasBambooGatewayScopes(ctx.body.scopes) ||
                 ctx.body.scopes.some(
                   (scope: unknown) =>
                     typeof scope !== 'string' || !SCOPES.includes(scope)

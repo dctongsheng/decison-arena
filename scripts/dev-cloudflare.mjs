@@ -18,6 +18,8 @@ const secrets = Object.fromEntries(readFileSync(envFile, 'utf8').split('\n').fla
 for (const name of ['AUTH_SECRET', 'CONFIG_ENCRYPTION_KEY', 'ARENA_ENCRYPTION_KEY']) {
   if (!secrets[name] || secrets[name].length < 32) throw new Error(`Missing ${name}; run pnpm setup:local.`);
 }
+// Explicitly isolated fixture login for the no-model smoke suite only.
+if (process.argv.includes('--local-auth')) secrets.AUTH_MODE = 'local';
 const local = resolve(root, '.wrangler/cloudflare-dev');
 const state = resolve(local, 'state');
 const environment = { ...process.env, VITE_APP_URL: origin, WRANGLER_LOG_PATH: resolve(local, 'logs'), WRANGLER_SEND_METRICS: 'false' };

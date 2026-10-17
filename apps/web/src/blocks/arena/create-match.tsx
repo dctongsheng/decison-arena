@@ -21,8 +21,11 @@ import { z } from 'zod';
 
 import { Link, useRouter } from '@/core/i18n/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { m } from '@/paraglide/messages.js';
 import { GameArtwork } from '@/components/arena/board';
 
+import { availableModels } from './bamboonode-access';
+import { BambooModelConnection } from './bamboonode-connection';
 import {
   ArenaShell,
   AuthGate,
@@ -47,6 +50,7 @@ export function CreateMatchPage({
   return (
     <ArenaShell>
       <AuthGate>
+        <BambooModelConnection />
         <CreateMatchContent game={game} clone={clone} />
       </AuthGate>
     </ArenaShell>
@@ -60,6 +64,7 @@ function CreateMatchContent({
   clone?: string;
 }) {
   const models = useModels();
+  const playableModels = availableModels(models.data?.items);
   const router = useRouter();
   const source = useQuery({
     queryKey: ['arena-clone', clone],
@@ -280,7 +285,7 @@ function CreateMatchContent({
                         (values.mode === 'human-ai' &&
                           Number(values.humanSeat) !== seat);
                       const template = source.data?.replay.seats[seat].profile;
-                      const choices = models.data?.items.filter(
+                      const choices = playableModels.filter(
                         (model) =>
                           !clone ||
                           !template ||
@@ -348,6 +353,9 @@ function CreateMatchContent({
                                       <option value={model.id} key={model.id}>
                                         {model.name} ·{' '}
                                         {model.model || 'System One'}
+                                        {model.source === 'bamboonode'
+                                          ? ` · ${m['arena.bamboo.model_source']()}`
+                                          : ''}
                                       </option>
                                     ))}
                                   </select>
@@ -440,11 +448,20 @@ function CreateMatchContent({
                   disabled={
                     (!!clone && !source.data) ||
                     (values.mode === 'ai-ai' &&
-                      (!values.profile0 || !values.profile1)) ||
+                      (!playableModels.some(
+                        (model) => model.id === values.profile0
+                      ) ||
+                        !playableModels.some(
+                          (model) => model.id === values.profile1
+                        ))) ||
                     (values.mode === 'human-ai' &&
-                      !(values.humanSeat === '0'
-                        ? values.profile1
-                        : values.profile0))
+                      !playableModels.some(
+                        (model) =>
+                          model.id ===
+                          (values.humanSeat === '0'
+                            ? values.profile1
+                            : values.profile0)
+                      ))
                   }
                 >
                   {t('new.create')}

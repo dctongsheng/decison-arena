@@ -54,6 +54,8 @@ const publicSeat = z.object({
         'systemone',
         'custom-openrouter',
         'custom-systemone',
+        'bamboonode-systemone',
+        'bamboonode-decisions',
       ]),
       model: z.string(),
       thinkMode: z.enum(['never', 'auto', 'always']).optional(),

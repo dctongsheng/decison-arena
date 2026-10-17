@@ -525,6 +525,32 @@ describe('explicit community publication', () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 
+  it.each([
+    ['bamboonode-systemone', 'startlux-decision-27b-autothink'],
+    ['bamboonode-decisions', 'typesafe/jev-1.13'],
+  ])('publishes and reads %s chess replays without private account data', async (provider, model) => {
+    await finished();
+    const privateReplay = {
+      ...replay,
+      seats: [{ kind: 'ai', profile: { ...replay.seats[0].profile, provider, model,
+        ownerId: 'private-owner', credentialId: 'private-credential', endpoint: 'https://private.invalid',
+        apiKey: fakeKey, accessToken: 'private-oauth-access', refreshToken: 'private-oauth-refresh' } }, { kind: 'human' }],
+      events: [{ seq: 1, type: 'action', at: 2, seat: 0,
+        action: { id: 'place:40', label: 'E5', to: 40 },
+        reasoning: { text: 'private-account-thought', truncated: false }, metrics: { elapsedMs: 12 } }],
+    };
+    globals.__CF_ENV__ = { ...(globals.__CF_ENV__ as Record<string, unknown>),
+      MATCH_SERVICE: { fetch: async () => Response.json(privateReplay) } };
+    const post = await arena.publishReplay('owner-a', { matchId: 'match-a', title: 'BambooNode game' });
+    const detail = await arena.communityDetail(post.id);
+    if (detail.replay.version !== 1) throw new Error('Expected chess replay');
+    expect(detail.replay.seats[0].profile).toMatchObject({ provider, model });
+    expect(detail.replay.events[0].metrics?.elapsedMs).toBe(12);
+    const serialized = JSON.stringify(detail);
+    for (const value of [fakeKey, 'private-owner', 'private-credential', 'private.invalid', 'private-oauth', 'private-account-thought'])
+      expect(serialized).not.toContain(value);
+  });
+
   it('strips credential details and raw thoughts from public replay artifacts', () => {
     const leaked = {
       ...replay,

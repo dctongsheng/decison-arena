@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame } from '@decision-arena/games';
 import { decide, decryptSecret } from '@decision-arena/providers';
+import { assertBambooNodeAccess, assertBambooNodeKey } from './bamboonode';
 import { ARCADE_GAME_IDS, ARCADE_MAX_CALLS, ARCADE_MAX_TICKS, ARCADE_MIN_REQUEST_MS, ARCADE_TICK_RATE, publicProfile } from '@decision-arena/core';
 import type { ArcadeAction, ArcadeClientMessage, ArcadeCommand, ArcadeEvent, ArcadeInput, ArcadeReplayV2, ArcadeResult, ArcadeRunSnapshot, ArcadeSession, ArcadeState, ArcadeStatus, CreateArcadeInput, DecisionResponse, PublicSeatConfig, SeatConfig } from '@decision-arena/core';
 import type { Env } from './index';
@@ -292,11 +293,14 @@ export class ArcadeSessionObject extends DurableObject<Env> {
       const credential = await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, owner).first<{ ciphertext: string }>();
       if (!credential) throw new Error('Credential was removed. Create another session with an available model.');
       const key = await decryptSecret(credential.ciphertext, this.env.ARENA_ENCRYPTION_KEY, owner);
+      await assertBambooNodeAccess(this.env.DB, owner, profile);
       beforeSend();
       // Reapply even for ready/paused/retry sessions frozen before this policy existed.
       const decision = await decide(realtimeProfile(profile), key, { state, actions, instructions: arcadeDecisionInstructions(this.rec!.input.gameId) }, controller.signal, beforeSend);
-      const stillExists = await this.env.DB.prepare('SELECT id FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, owner).first();
+      const stillExists = await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, owner).first<{ ciphertext: string }>();
       if (!stillExists) throw new Error('Credential was removed during the decision.');
+      await assertBambooNodeKey(profile, stillExists.ciphertext, key, this.env.ARENA_ENCRYPTION_KEY, owner);
+      await assertBambooNodeAccess(this.env.DB, owner, profile);
       this.settleDecision(runId, pending, decision, actions);
     } catch (error) {
       this.advanceToNow();
@@ -399,6 +403,7 @@ export class ArcadeSessionObject extends DurableObject<Env> {
       const profile = controller.profile;
       if (!profile || profile.ownerId !== ownerId) throw new Error('Invalid model owner');
       if (!await this.env.DB.prepare('SELECT id FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, ownerId).first()) throw new Error('Credential not found');
+      await assertBambooNodeAccess(this.env.DB, ownerId, profile);
     }
     if (this.rec) { this.require(ownerId); throw new Error('Arcade session already exists'); }
     const adapter = getArcadeGame(input.gameId), seed = input.seed ?? crypto.randomUUID(), now = Date.now();

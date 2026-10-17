@@ -24,6 +24,9 @@ import { z } from 'zod';
 import { useSession } from '@/core/auth/client';
 import { Link, useRouter } from '@/core/i18n/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { m } from '@/paraglide/messages.js';
+import { availableModels } from '@/blocks/arena/bamboonode-access';
+import { BambooModelConnection } from '@/blocks/arena/bamboonode-connection';
 import {
   ArenaShell,
   AuthGate,
@@ -62,6 +65,7 @@ export function CreateArcadePage({
   return (
     <ArenaShell>
       <AuthGate>
+        <BambooModelConnection />
         <CreateContent
           key={`${game || ''}:${clone || ''}`}
           game={game}
@@ -74,6 +78,7 @@ export function CreateArcadePage({
 function CreateContent({ game, clone }: { game?: string; clone?: string }) {
   const router = useRouter(),
     models = useModels();
+  const playableModels = availableModels(models.data?.items);
   const { data: identity } = useSession();
   const userId = identity?.user.id || '';
   const [preferencesReady, setPreferencesReady] = useState(false);
@@ -120,7 +125,7 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
       const controllers = arcadeCreateControllers(
         value.mode,
         value,
-        (models.data?.items || []).map((profile) => profile.id)
+        playableModels.map((profile) => profile.id)
       );
       if (!controllers) throw new Error(a('required_model'));
       await create.mutateAsync({
@@ -319,7 +324,7 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
                     const ai = kind === 'ai';
                     const original =
                       source.data?.replay.controllers[index]?.profile;
-                    const available = (models.data?.items || []).filter(
+                    const available = playableModels.filter(
                       (model) =>
                         !clone ||
                         !original ||
@@ -372,6 +377,9 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
                                         {model.name} ·{' '}
                                         {model.model ||
                                           t('models.service_default')}
+                                        {model.source === 'bamboonode'
+                                          ? ` · ${m['arena.bamboo.model_source']()}`
+                                          : ''}
                                       </option>
                                     ))}
                                   </select>
@@ -483,7 +491,7 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
                     !arcadeModelsReady(
                       values.mode,
                       values,
-                      (models.data?.items || []).map((model) => model.id)
+                      playableModels.map((model) => model.id)
                     )
                   )
                 }

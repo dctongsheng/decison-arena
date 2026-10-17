@@ -102,6 +102,8 @@ export interface SavedModel {
   thinkMode?: string;
   thinkBudget?: number;
   keyMask?: string;
+  source?: 'manual' | 'bamboonode';
+  available?: boolean;
 }
 export interface MatchItem {
   id: string;

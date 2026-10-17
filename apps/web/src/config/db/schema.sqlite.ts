@@ -763,6 +763,28 @@ export type IdeaVote = typeof ideaVote.$inferSelect;
 export type NewIdeaVote = typeof ideaVote.$inferInsert;
 
 // Arena tables use epoch milliseconds in both D1 and the local SQLite adapter.
+// OAuth tokens remain in Better Auth's encrypted account columns. This table
+// owns the installation, sync lease and locally revocable model grant only.
+export const arenaBambooConnection = table('arena_bamboo_connections', {
+  ownerId: text('owner_id')
+    .primaryKey()
+    .references(() => user.id),
+  accountId: text('account_id').notNull(),
+  installationId: text('installation_id').notNull(),
+  credentialId: text('credential_id').notNull(),
+  status: text('status').notNull().default('not_connected'),
+  expiresAt: integer('expires_at'),
+  modelsJson: text('models_json').notNull().default('[]'),
+  oauthFingerprint: text('oauth_fingerprint').notNull().default(''),
+  lockId: text('lock_id'),
+  lockExpiresAt: integer('lock_expires_at'),
+  phase: text('phase'),
+  lastError: text('last_error'),
+  lastSyncedAt: integer('last_synced_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
 export const arenaCredential = table(
   'arena_credentials',
   {
