@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 
 import { canEditModel } from './bamboonode-access';
 import { BambooModelConnection } from './bamboonode-connection';
+import { BambooJevNotice } from './bamboonode-billing';
 import {
   ArenaShell,
   AuthGate,
@@ -378,6 +379,7 @@ function ModelsContent() {
               </div>
               <h3>{model.name}</h3>
               <p className="arena-model-id">{model.model || 'System One'}</p>
+              <BambooJevNotice profile={model} />
               <dl>
                 <div>
                   <dt>

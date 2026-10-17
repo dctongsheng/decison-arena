@@ -26,6 +26,7 @@ import { GameArtwork } from '@/components/arena/board';
 
 import { availableModels } from './bamboonode-access';
 import { BambooModelConnection } from './bamboonode-connection';
+import { BambooJevNotice } from './bamboonode-billing';
 import {
   ArenaShell,
   AuthGate,
@@ -375,6 +376,13 @@ function CreateMatchContent({
                                   : 'new.you'
                               )}
                             </p>
+                          )}
+                          {ai && (
+                            <BambooJevNotice
+                              profile={choices.find((model) => model.id ===
+                                (seat === 0 ? values.profile0 : values.profile1)
+                              )}
+                            />
                           )}
                         </div>
                       );

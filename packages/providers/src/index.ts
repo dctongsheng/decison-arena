@@ -1,4 +1,5 @@
 import type { BambooNodeProviderId, DecisionRequest, DecisionResponse, ModelProfile, ProviderId, ProviderAdapter } from '@decision-arena/core';
+import { BAMBOONODE_INSUFFICIENT_QUOTA } from '@decision-arena/core';
 
 export const ENDPOINTS = {
   openrouter: 'https://openrouter.ai/api/alpha/decisions', systemone: 'https://startlux-decision.com/v1/systemone',
@@ -119,13 +120,30 @@ export function normalizeResponse(raw: unknown, request: DecisionRequest, elapse
   const reasoning=returnedReasoning(thoughts);
   return {actionId:request.actions[selected].id, metrics,...(reasoning?{reasoning}:{})};
 }
-async function limitedJson(response: Response): Promise<unknown> {
-  if(Number(response.headers.get('content-length'))>2_000_000) throw new Error('Provider response too large');
+async function limitedJson(response: Response, maximumBytes = 2_000_000): Promise<unknown> {
+  if(Number(response.headers.get('content-length'))>maximumBytes) { await response.body?.cancel(); throw new Error('Provider response too large'); }
   const reader=response.body?.getReader(); if(!reader) throw new Error('Empty provider response');
   const chunks: Uint8Array[]=[]; let size=0;
-  while(true) { const {value,done}=await reader.read(); if(done)break; size+=value.byteLength; if(size>2_000_000){await reader.cancel();throw new Error('Provider response too large');} chunks.push(value); }
+  while(true) { const {value,done}=await reader.read(); if(done)break; size+=value.byteLength; if(size>maximumBytes){await reader.cancel();throw new Error('Provider response too large');} chunks.push(value); }
   const bytes=new Uint8Array(size); let offset=0; for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
   try{return JSON.parse(new TextDecoder().decode(bytes));}catch{throw new Error('Provider returned invalid JSON');}
+}
+async function providerFailure(response: Response, provider: ProviderId): Promise<Error> {
+  // Only classify the fixed BambooNode gateway's explicit quota rejection. A 403
+  // can also mean denied permissions; neither status nor permission_denied alone
+  // proves a balance problem. Never return upstream messages, balances or URLs.
+  if(isBambooNodeProvider(provider) && [402,403].includes(response.status)) {
+    try {
+      const body = await limitedJson(response, 16_384);
+      const error = body && typeof body === 'object' && 'error' in body ? body.error : undefined;
+      if(error && typeof error === 'object' && !Array.isArray(error)) {
+        const { code, message } = error as { code?: unknown; message?: unknown };
+        if(code === 'insufficient_quota' || (typeof message === 'string' && /^(?:Insufficient user quota\b|用户额度不足)(?:\s*[,，:：]|\s*$)/i.test(message.trim())))
+          return new Error(BAMBOONODE_INSUFFICIENT_QUOTA);
+      }
+    } catch { /* Invalid/oversized error bodies retain the safe generic failure. */ }
+  } else await response.body?.cancel();
+  return new Error(`Model provider returned HTTP ${response.status}`);
 }
 export async function decide(profile: ModelProfile, key: string, request: DecisionRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<DecisionResponse> {
   if(!request.actions.length || request.actions.length>1000) throw new Error('Invalid candidate count');
@@ -149,7 +167,7 @@ export async function decide(profile: ModelProfile, key: string, request: Decisi
   let response:Response;
   try { response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(payload),redirect:'manual',signal:requestSignal}); }
   catch { throw new Error('Model connection failed or timed out; retry explicitly to avoid duplicate charges'); }
-  if(!response.ok) { await response.body?.cancel(); throw new Error(`Model provider returned HTTP ${response.status}`); }
+  if(!response.ok) throw await providerFailure(response, profile.provider);
   return normalizeResponse(await limitedJson(response),request,Date.now()-started);
 }
 export const decisionProvider: ProviderAdapter={decide};

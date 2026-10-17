@@ -1423,5 +1423,9 @@
   "arena.bamboo.billing": "Charged to",
   "arena.bamboo.own_quota": "Your account quota",
   "arena.bamboo.managed_profile": "Synced from your account catalog. Credentials are managed on the server; reconnect or sync above to update access.",
-  "arena.bamboo.model_unavailable": "Unavailable · check authorization"
+  "arena.bamboo.model_unavailable": "Unavailable · check authorization",
+  "arena.bamboo.jev_paid": "Jev is a paid model and uses your own BambooNode account quota. Check your balance before playing; top up if needed.",
+  "arena.bamboo.top_up": "Top up / check quota",
+  "arena.bamboo.insufficient_quota": "Your BambooNode account has insufficient quota. Top up, then return here to continue or retry manually. The game will not resume automatically.",
+  "arena.bamboo.forbidden_help": "The model request returned HTTP 403; this alone does not identify the cause. Check your BambooNode quota and model permissions."
 }

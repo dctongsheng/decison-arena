@@ -104,6 +104,7 @@ const arcadeScore = z.object({
   coins: finite.optional(), progress: finite.optional(), completed: z.boolean().optional(),
 });
 const arcadeGameId = z.enum(['snake', 'tetris', 'platformer']);
+const snakeHarnessVersion = z.enum(['snake-harness-a-v1', 'snake-harness-b-v1', 'snake-harness-c-v1']);
 const arcadeView = z.object({
   gameId: arcadeGameId, tick, status: z.enum(['playing', 'finished']), score: arcadeScore,
   width: finite, height: finite, currentButtons: buttons, reason: z.string().max(500).optional(),
@@ -119,7 +120,10 @@ const arcadeView = z.object({
 const arcadeReplaySchema = z.object({
   version: z.literal(2), engineKind: z.literal('arcade'), matchId: z.string(), gameId: arcadeGameId,
   mode: z.enum(['practice', 'ai-solo', 'human-ai', 'ai-ai']), rulesVersion: z.string(), promptVersion: z.string(), seed: z.string(),
-  config: z.object({ level: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional() }),
+  config: z.object({
+    level: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+    snakeHarnessVersion: snakeHarnessVersion.optional(),
+  }),
   controllers: z.array(publicSeat).min(1).max(2),
   runIds: z.array(z.string()).min(1).max(2),
   result: result.extend({ scores: z.array(arcadeScore).min(1).max(2), aborted: z.boolean() }),
@@ -130,9 +134,12 @@ const arcadeReplaySchema = z.object({
     tick, at: finite, runId: z.string().optional(), input: input.optional(), release: z.literal(true).optional(), actionId: z.string().max(160).optional(),
     observedTick: tick.optional(), appliedTick: tick.optional(), requestId: z.string().optional(),
     promptVersion: z.string().regex(/^decision-arena-arcade-v[1-9][0-9]*$/).max(64).optional(),
+    snakeHarnessVersion: snakeHarnessVersion.optional(),
     outcome: z.enum(['applied', 'dropped', 'failed', 'unknown']).optional(), metrics: metrics.optional(),
   })).max(20000),
 }).superRefine((value, ctx) => {
+  if (value.gameId !== 'snake' && (value.config.snakeHarnessVersion !== undefined || value.events.some(event => event.snakeHarnessVersion !== undefined)))
+    ctx.addIssue({ code: 'custom', message: 'Snake harness versions are only available for snake replays.' });
   const tracks = value.mode === 'practice' || value.mode === 'ai-solo' ? 1 : 2;
   if (value.controllers.length !== tracks || value.runIds.length !== tracks || new Set(value.runIds).size !== tracks || value.result.scores.length !== tracks ||
       (value.mode === 'ai-solo' && (value.controllers[0]?.kind !== 'ai' || value.result.winner !== null)) ||

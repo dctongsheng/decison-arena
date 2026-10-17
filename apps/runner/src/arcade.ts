@@ -1,9 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
-import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame } from '@decision-arena/games';
+import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame, SNAKE_HARNESS_PROTOCOL, snakeHarnessVersion, snakeHarnessInstructions, snakeHarnessPosition, rememberSnakeObservation } from '@decision-arena/games';
+import type { SnakePreviousObservation, SnakeVisibleObservation } from '@decision-arena/games';
 import { decide, decryptSecret } from '@decision-arena/providers';
 import { assertBambooNodeAccess, assertBambooNodeKey } from './bamboonode';
 import { ARCADE_GAME_IDS, ARCADE_MAX_CALLS, ARCADE_MAX_TICKS, ARCADE_MIN_REQUEST_MS, ARCADE_TICK_RATE, publicProfile } from '@decision-arena/core';
-import type { ArcadeAction, ArcadeClientMessage, ArcadeCommand, ArcadeEvent, ArcadeInput, ArcadeReplayV2, ArcadeResult, ArcadeRunSnapshot, ArcadeSession, ArcadeState, ArcadeStatus, CreateArcadeInput, DecisionResponse, PublicSeatConfig, SeatConfig } from '@decision-arena/core';
+import type { ArcadeAction, ArcadeClientMessage, ArcadeCommand, ArcadeEvent, ArcadeInput, ArcadeReplayV2, ArcadeResult, ArcadeRunSnapshot, ArcadeSession, ArcadeState, ArcadeStatus, CreateArcadeInput, DecisionResponse, PublicSeatConfig, SeatConfig, SnakeHarnessVersion } from '@decision-arena/core';
 import type { Env } from './index';
 import { canObserveAfterInput, canSendObservedDecision } from './arcade-scheduling';
 
@@ -11,12 +12,14 @@ const BATCH_MS = 50, BROADCAST_MS = 100, WATCHDOG_MS = 5000, STALL_MS = 250;
 const LEASE_RENEW_MS = 30000, LEASE_SAFE_MS = 150000, MAX_EVENTS = 12000;
 const LEGACY_PROMPT_VERSION = 'decision-arena-arcade-v1';
 const BUTTONS = new Set(['up', 'down', 'left', 'right', 'rotate-cw', 'rotate-ccw', 'soft-drop', 'hard-drop', 'hold', 'jump']);
-type Inflight = { requestId: string; generation: number; observedTick: number; startedAt: number; pieceId?: number; promptVersion?: string };
+type Inflight = { requestId: string; generation: number; observedTick: number; startedAt: number; pieceId?: number; promptVersion?: string; snakeHarnessVersion?: SnakeHarnessVersion };
 type Control = { session: string; clientSeq: number; lastSeen: number; released: boolean; acks: Record<string, number> };
 interface Run {
   id: string; controller: SeatConfig; state: ArcadeState; calls: number; lastRequestedAt: number;
   inflight?: Inflight; control?: Control; lastDecision?: ArcadeRunSnapshot['lastDecision'];
   observeAfterTick?: number;
+  // A small visible-state checkpoint, never RNG or raw provider payload. Needed only by C.
+  snakePreviousObservation?: SnakePreviousObservation;
 }
 interface RecordState {
   schemaVersion: 2; id: string; ownerId: string; input: CreateArcadeInput; seed: string; rulesVersion: string;
@@ -67,7 +70,8 @@ export class ArcadeSessionObject extends DurableObject<Env> {
             if (run.inflight) {
               const pending = run.inflight;
               run.lastDecision = { observedTick: pending.observedTick, outcome: 'unknown' };
-              this.event(r, 'decision', { runId: run.id, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, outcome: 'unknown', message: 'Runtime restarted; billing status is unknown. Retry explicitly.' });
+              if (run.snakePreviousObservation?.tick === pending.observedTick) run.snakePreviousObservation.outcome = 'unknown';
+              this.event(r, 'decision', { runId: run.id, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), outcome: 'unknown', message: 'Runtime restarted; billing status is unknown. Retry explicitly.' });
               delete run.inflight;
               r.needsRetry = true;
             }
@@ -268,10 +272,14 @@ export class ArcadeSessionObject extends DurableObject<Env> {
     const adapter = getArcadeGame(current.input.gameId), actions = adapter.candidates(run.state);
     if (!actions.length) { this.pause('The game returned no model input candidates.', true); return; }
     const view = adapter.view(run.state), requestId = crypto.randomUUID(), controller = new AbortController();
-    const pending: Inflight = { requestId, generation: current.generation, observedTick: current.tick, startedAt: Date.now(), promptVersion: ARCADE_PROMPT_VERSION, ...(view.pieceId === undefined ? {} : { pieceId: view.pieceId }) };
-    const position = adapter.observe(run.state), profile = run.controller.profile!;
+    const harness = current.input.gameId === 'snake' ? snakeHarnessVersion(current.input.config.snakeHarnessVersion) : undefined;
+    const pending: Inflight = { requestId, generation: current.generation, observedTick: current.tick, startedAt: Date.now(), promptVersion: harness ? SNAKE_HARNESS_PROTOCOL : ARCADE_PROMPT_VERSION, ...(harness ? { snakeHarnessVersion: harness } : {}), ...(view.pieceId === undefined ? {} : { pieceId: view.pieceId }) };
+    const visible = adapter.observe(run.state), profile = run.controller.profile!;
+    const position = harness ? snakeHarnessPosition(harness, visible, actions, run.snakePreviousObservation) : visible;
     const recentInputs = this.ctx.storage.sql.exec<{ value: string }>("SELECT value FROM arcade_events WHERE json_extract(value,'$.runId')=? AND json_extract(value,'$.type')='input' ORDER BY seq DESC LIMIT 20", runId).toArray().reverse().map(row => JSON.parse(row.value) as ArcadeEvent).map(event => ({ tick: event.appliedTick ?? event.tick, input: event.input }));
-    this.change(r => { const lane = r.runs.find(entry => entry.id === runId)!; lane.inflight = pending; lane.calls++; lane.lastRequestedAt = pending.startedAt; });
+    this.change(r => { const lane = r.runs.find(entry => entry.id === runId)!; lane.inflight = pending; lane.calls++; lane.lastRequestedAt = pending.startedAt;
+      if (harness === 'snake-harness-c-v1') lane.snakePreviousObservation = rememberSnakeObservation(visible as SnakeVisibleObservation);
+    });
     this.calls.set(runId, controller);
     this.ctx.waitUntil(this.infer(runId, pending, actions, { game: current.input.gameId, rules: adapter.rules, position, observedTick: pending.observedTick,
       promptVersion: pending.promptVersion, runtime: { tickRate: ARCADE_TICK_RATE, minRequestIntervalMs: ARCADE_MIN_REQUEST_MS, lastResponseMs: run.lastDecision?.metrics?.elapsedMs ?? null }, recentInputs }, profile, controller));
@@ -296,7 +304,8 @@ export class ArcadeSessionObject extends DurableObject<Env> {
       await assertBambooNodeAccess(this.env.DB, owner, profile);
       beforeSend();
       // Reapply even for ready/paused/retry sessions frozen before this policy existed.
-      const decision = await decide(realtimeProfile(profile), key, { state, actions, instructions: arcadeDecisionInstructions(this.rec!.input.gameId) }, controller.signal, beforeSend);
+      const instructions = pending.snakeHarnessVersion ? snakeHarnessInstructions(pending.snakeHarnessVersion) : arcadeDecisionInstructions(this.rec!.input.gameId);
+      const decision = await decide(realtimeProfile(profile), key, { state, actions, instructions }, controller.signal, beforeSend);
       const stillExists = await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, owner).first<{ ciphertext: string }>();
       if (!stillExists) throw new Error('Credential was removed during the decision.');
       await assertBambooNodeKey(profile, stillExists.ciphertext, key, this.env.ARENA_ENCRYPTION_KEY, owner);
@@ -310,7 +319,8 @@ export class ArcadeSessionObject extends DurableObject<Env> {
         this.change(next => {
           const lane = next.runs.find(entry => entry.id === runId)!;
           lane.lastDecision = { observedTick: pending.observedTick, outcome: active ? 'failed' : 'dropped' }; delete lane.inflight;
-          this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, outcome: active ? 'failed' : 'dropped', message: canceledBeforeSend ? 'Control became stale before model dispatch; no request was sent.' : active ? message(error) : 'Request settled after its control generation ended' });
+          if (lane.snakePreviousObservation?.tick === pending.observedTick) lane.snakePreviousObservation.outcome = active ? 'failed' : 'dropped';
+          this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), outcome: active ? 'failed' : 'dropped', message: canceledBeforeSend ? 'Control became stale before model dispatch; no request was sent.' : active ? message(error) : 'Request settled after its control generation ended' });
         });
         if (active) this.pause(message(error), true);
       }
@@ -334,12 +344,13 @@ export class ArcadeSessionObject extends DurableObject<Env> {
       const lane = next.runs.find(entry => entry.id === runId)!;
       delete lane.inflight;
       lane.lastDecision = { observedTick: pending.observedTick, ...(valid ? { appliedTick: next.tick + 1 } : {}), outcome: valid ? 'applied' : 'dropped', metrics: decision.metrics, ...(decision.reasoning ? { reasoning: decision.reasoning } : {}) };
+      if (lane.snakePreviousObservation?.tick === pending.observedTick) Object.assign(lane.snakePreviousObservation, { actionId: action.id, outcome: valid ? 'applied' : 'dropped', ...(valid ? { appliedTick: next.tick + 1 } : {}) });
       if (valid) {
         this.frame(next);
         lane.state = adapter.input(lane.state, action.input);
         lane.observeAfterTick = next.tick + 1;
       }
-      this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(valid ? { appliedTick: next.tick + 1 } : {}), actionId: action.id, outcome: valid ? 'applied' : 'dropped', metrics: decision.metrics, ...(decision.reasoning ? { reasoning: decision.reasoning } : {}) });
+      this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), ...(valid ? { appliedTick: next.tick + 1 } : {}), actionId: action.id, outcome: valid ? 'applied' : 'dropped', metrics: decision.metrics, ...(decision.reasoning ? { reasoning: decision.reasoning } : {}) });
       if (valid) this.event(next, 'input', { runId, requestId: pending.requestId, input: action.input, appliedTick: next.tick + 1 });
       if (valid) this.frame(next);
     });
@@ -399,6 +410,8 @@ export class ArcadeSessionObject extends DurableObject<Env> {
     if (input.mode === 'ai-solo' && input.controllers[0].kind !== 'ai') throw new Error('Solo AI requires exactly one model');
     if (input.seed !== undefined && (typeof input.seed !== 'string' || input.seed.length < 1 || input.seed.length > 128)) throw new Error('Invalid session seed');
     if (input.config?.level !== undefined && ![1, 2, 3].includes(input.config.level)) throw new Error('Invalid level');
+    if (input.gameId !== 'snake' && input.config?.snakeHarnessVersion !== undefined) throw new Error('Snake harness is only available for snake');
+    const harness = input.gameId === 'snake' ? snakeHarnessVersion(input.config?.snakeHarnessVersion) : undefined;
     for (const controller of input.controllers) if (controller.kind === 'ai') {
       const profile = controller.profile;
       if (!profile || profile.ownerId !== ownerId) throw new Error('Invalid model owner');
@@ -407,8 +420,8 @@ export class ArcadeSessionObject extends DurableObject<Env> {
     }
     if (this.rec) { this.require(ownerId); throw new Error('Arcade session already exists'); }
     const adapter = getArcadeGame(input.gameId), seed = input.seed ?? crypto.randomUUID(), now = Date.now();
-    const safeInput: CreateArcadeInput = { gameId: input.gameId, mode: input.mode, config: { ...(input.config?.level ? { level: input.config.level } : {}) }, controllers: input.controllers.map(controller => controller.kind === 'ai' ? { kind: 'ai', profile: realtimeProfile(controller.profile!) } : { kind: 'human' }) };
-    this.rec = { schemaVersion: 2, id, ownerId, input: safeInput, seed, rulesVersion: adapter.rulesVersion, promptVersion: ARCADE_PROMPT_VERSION, status: 'ready', version: 0, generation: 0, tick: 0,
+    const safeInput: CreateArcadeInput = { gameId: input.gameId, mode: input.mode, config: { ...(input.config?.level ? { level: input.config.level } : {}), ...(harness ? { snakeHarnessVersion: harness } : {}) }, controllers: input.controllers.map(controller => controller.kind === 'ai' ? { kind: 'ai', profile: realtimeProfile(controller.profile!) } : { kind: 'human' }) };
+    this.rec = { schemaVersion: 2, id, ownerId, input: safeInput, seed, rulesVersion: adapter.rulesVersion, promptVersion: harness ? SNAKE_HARNESS_PROTOCOL : ARCADE_PROMPT_VERSION, status: 'ready', version: 0, generation: 0, tick: 0,
       runs: safeInput.controllers.map((controller, index) => ({ id: `run-${index}`, controller, state: adapter.create(safeInput.config, seed), calls: 0, lastRequestedAt: 0 })),
       eventSeq: 0, createdAt: now, updatedAt: now, anchorWall: now, anchorTick: 0, lastBatchWall: now, needsRetry: false,
       leaseRenewedAt: 0, needsSync: true, lastSyncedAt: 0, syncFailures: 0 };

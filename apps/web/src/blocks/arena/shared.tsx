@@ -26,6 +26,7 @@ import { signOut, useSession } from '@/core/auth/client';
 import { Link, usePathname } from '@/core/i18n/navigation';
 import { envConfigs } from '@/config';
 import { apiGet } from '@/lib/api-client';
+import { m } from '@/paraglide/messages.js';
 import { getLocale, setLocale } from '@/paraglide/runtime.js';
 import { a } from '@/blocks/arcade/messages';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,13 @@ import { Button } from '@/components/ui/button';
 import './arena.css';
 
 import { arenaText as t } from './messages';
+import { BambooAccountLink } from './bamboonode-billing';
+import {
+  isBambooJev,
+  modelErrorKind,
+  modelErrorText,
+  type ModelErrorProviders,
+} from './model-errors';
 
 export { arenaText as t } from './messages';
 
@@ -76,7 +84,10 @@ const matchMessages: Record<string, string> = {
     'credential_removed',
   'Credential was removed during the decision': 'credential_removed',
 };
-export function eventLabel(event: MatchEvent): string {
+export function eventLabel(
+  event: MatchEvent,
+  providers: ModelErrorProviders = []
+): string {
   if (event.action?.label) return event.action.label;
   if (!event.message) return t(`event.${event.type}`);
   if (
@@ -85,7 +96,7 @@ export function eventLabel(event: MatchEvent): string {
     return statusName(event.message);
   return matchMessages[event.message]
     ? t(`error.${matchMessages[event.message]}`)
-    : event.message;
+    : modelErrorText(event.message, providers);
 }
 export function formatDate(value: string | number) {
   return new Date(value).toLocaleString(
@@ -295,12 +306,25 @@ export function Loading() {
     </div>
   );
 }
-export function ErrorNotice({ error }: { error: unknown }) {
+export function ErrorNotice({
+  error,
+  providers = [],
+}: {
+  error: unknown;
+  providers?: ModelErrorProviders;
+}) {
   if (!error) return null;
+  const kind = modelErrorKind(error, providers);
   return (
     <div className="arena-error" role="alert">
       <CircleHelp size={17} />
-      <span>{error instanceof Error ? error.message : String(error)}</span>
+      <div>
+        {modelErrorText(error, providers)}
+        {kind && <>{' '}<BambooAccountLink /></>}
+        {kind && providers.some((provider) => isBambooJev({ provider })) && (
+          <p>{m['arena.bamboo.jev_paid']()}</p>
+        )}
+      </div>
     </div>
   );
 }

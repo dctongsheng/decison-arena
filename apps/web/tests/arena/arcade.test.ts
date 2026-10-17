@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { eq } from 'drizzle-orm';
+import type { SnakeHarnessVersion } from '@decision-arena/core';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { publicReplay } from '@/core/arena/public-replay';
 import { createArcadeInput } from '@/core/arena/validation';
@@ -13,6 +14,7 @@ let database: ReturnType<typeof drizzle>, client: Client;
 vi.mock('@/core/db', () => ({ db: () => database }));
 const globals = globalThis as typeof globalThis & { __CF_ENV__?: unknown };
 const calls: Request[] = [];
+const snakeHarnessVersions = ['snake-harness-a-v1', 'snake-harness-b-v1', 'snake-harness-c-v1'] as const satisfies readonly SnakeHarnessVersion[];
 const score = { points: 10, food: 1, survivedTicks: 60 };
 const view = { gameId: 'snake', tick: 60, status: 'finished', score, width: 20, height: 20,
   currentButtons: [], snake: [{ x: 10, y: 10 }], food: { x: 2, y: 2 }, reason: 'wall' };
@@ -50,6 +52,26 @@ async function indexed() {
 }
 
 describe('arcade activity validation and tenant boundaries', () => {
+  it.each(snakeHarnessVersions)('preserves explicit %s in a new snake session request', async snakeHarnessVersion => {
+    const body = { gameId: 'snake', mode: 'practice', config: { snakeHarnessVersion }, controllers: [{ kind: 'human' }] };
+    expect(createArcadeInput.parse(body).config).toEqual({ snakeHarnessVersion });
+    await arena.createArcadeSession('alice', body);
+    expect((await calls.at(-1)!.clone().json()).config).toEqual({ snakeHarnessVersion });
+  });
+  it('leaves omitted harness versions absent and does not alter other game settings', () => {
+    for (const gameId of ['snake', 'tetris', 'platformer']) {
+      const config = gameId === 'platformer' ? { level: 2 } : {};
+      expect(createArcadeInput.parse({ gameId, mode: 'practice', config, controllers: [{ kind: 'human' }] }).config).toEqual(config);
+    }
+  });
+  it('rejects unknown snake versions and versions attached to other games', () => {
+    const body = { gameId: 'snake', mode: 'practice', controllers: [{ kind: 'human' }] };
+    for (const snakeHarnessVersion of ['A', 'snake-harness-a-v2', 'snake-harness-d-v1', '', null, 1])
+      expect(createArcadeInput.safeParse({ ...body, config: { snakeHarnessVersion } }).success).toBe(false);
+    for (const gameId of ['tetris', 'platformer'])
+      for (const snakeHarnessVersion of snakeHarnessVersions)
+        expect(createArcadeInput.safeParse({ ...body, gameId, config: { snakeHarnessVersion } }).success).toBe(false);
+  });
   it('accepts exactly the four controller layouts and rejects unrelated modes and unsafe input', () => {
     for (const [mode, kinds] of [['practice', ['human']], ['ai-solo', ['ai']], ['human-ai', ['human', 'ai']], ['ai-ai', ['ai', 'ai']]] as const)
       expect(createArcadeInput.safeParse({ gameId: 'snake', mode, controllers: kinds.map(kind => ({ kind, profileId: kind === 'ai' ? 'mine' : undefined })) }).success).toBe(true);
@@ -91,6 +113,60 @@ describe('arcade activity validation and tenant boundaries', () => {
 });
 
 describe('arcade community replay', () => {
+  it.each(snakeHarnessVersions)('preserves %s session and event metadata through the public whitelist', snakeHarnessVersion => {
+    const original = {
+      ...replay,
+      config: { snakeHarnessVersion, endpoint: 'https://private.invalid' },
+      events: [{ ...replay.events[0], snakeHarnessVersion, promptVersion: 'decision-arena-arcade-v4' }],
+    };
+    const clean = publicReplay(original);
+    if (clean.version !== 2) throw new Error('Expected arcade replay');
+    expect(clean.config).toEqual({ snakeHarnessVersion });
+    expect(clean.events[0].snakeHarnessVersion).toBe(snakeHarnessVersion);
+    expect(clean.events[0].promptVersion).toBe('decision-arena-arcade-v4');
+    expect(JSON.stringify(clean)).not.toContain('private.invalid');
+    expect(JSON.stringify(clean)).not.toContain('private-thought');
+    expect(original.config.endpoint).toBe('https://private.invalid');
+  });
+  it('keeps legacy replay and event metadata absent without backfilling A', () => {
+    const clean = publicReplay(replay);
+    if (clean.version !== 2) throw new Error('Expected arcade replay');
+    expect(clean.config).toEqual({});
+    expect(clean.events[0]).not.toHaveProperty('snakeHarnessVersion');
+    expect(replay.config).toEqual({});
+  });
+  it('rejects invalid harness metadata and non-snake replay metadata', () => {
+    for (const snakeHarnessVersion of ['A', 'snake-harness-a-v2', 'snake-harness-d-v1', null]) {
+      expect(() => publicReplay({ ...replay, config: { snakeHarnessVersion } })).toThrow();
+      expect(() => publicReplay({ ...replay, events: [{ ...replay.events[0], snakeHarnessVersion }] })).toThrow();
+    }
+    for (const gameId of ['tetris', 'platformer']) {
+      const otherGame = { ...replay, gameId, frames: replay.frames.map(frame => ({ ...frame, views: frame.views.map(value => ({ ...value, gameId })) })) };
+      expect(() => publicReplay(otherGame)).not.toThrow();
+      expect(() => publicReplay({ ...otherGame, config: { snakeHarnessVersion: 'snake-harness-a-v1' } })).toThrow();
+      expect(() => publicReplay({ ...otherGame, events: [{ ...replay.events[0], snakeHarnessVersion: 'snake-harness-a-v1' }] })).toThrow();
+    }
+  });
+  it.each([undefined, ...snakeHarnessVersions])('clones frozen %s rather than accepting the requested replacement', async snakeHarnessVersion => {
+    const source = { ...replay, config: snakeHarnessVersion ? { snakeHarnessVersion } : {} };
+    globals.__CF_ENV__ = { ...(globals.__CF_ENV__ as Record<string, unknown>), MATCH_SERVICE: { fetch: async (request: Request) => {
+      calls.push(request);
+      return Response.json(new URL(request.url).pathname.endsWith('/replay') ? source : { id: 'created', status: 'ready' });
+    } } };
+    await indexed();
+    const post = await arena.publishReplay('alice', { matchId: 'arcade-a', title: 'Frozen harness fixture' });
+    const bob = await profile('bob');
+    await arena.createArcadeSession('bob', {
+      cloneId: post.id, gameId: 'snake', mode: 'ai-ai',
+      config: { snakeHarnessVersion: snakeHarnessVersion === 'snake-harness-b-v1' ? 'snake-harness-c-v1' : 'snake-harness-b-v1' },
+      controllers: [0, 1].map(() => ({ kind: 'ai', profileId: bob.id })),
+    });
+    const cloned = await calls.at(-1)!.clone().json();
+    expect(cloned.config).toEqual({ snakeHarnessVersion: snakeHarnessVersion ?? 'snake-harness-a-v1' });
+    expect(cloned.seed).toBe(source.seed);
+    expect(cloned.controllers[0].profile.ownerId).toBe('bob');
+    expect((await arena.communityDetail(post.id)).replay.config).toEqual(source.config);
+  });
   it.each([
     ['bamboonode-systemone', 'startlux-decision-27b-autothink'],
     ['bamboonode-decisions', 'typesafe/jev-1.14'],

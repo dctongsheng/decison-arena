@@ -634,7 +634,11 @@ export async function createArcadeSession(ownerId: string, input: unknown) {
   const payload: CreateArcadeInput = {
     gameId: source?.gameId ?? data.gameId,
     mode: source?.mode ?? data.mode,
-    config: source?.config ?? data.config,
+    // New clones of legacy snake recordings always use A, independently of any
+    // future default for new sessions. The source replay remains unchanged.
+    config: source?.gameId === 'snake'
+      ? { ...source.config, snakeHarnessVersion: source.config.snakeHarnessVersion ?? 'snake-harness-a-v1' }
+      : source?.config ?? data.config,
     seed: source?.seed ?? data.seed,
     controllers,
   };

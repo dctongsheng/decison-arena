@@ -27,6 +27,7 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import { m } from '@/paraglide/messages.js';
 import { availableModels } from '@/blocks/arena/bamboonode-access';
 import { BambooModelConnection } from '@/blocks/arena/bamboonode-connection';
+import { BambooJevNotice } from '@/blocks/arena/bamboonode-billing';
 import {
   ArenaShell,
   AuthGate,
@@ -386,6 +387,11 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
                                 </label>
                               )}
                             </form.Field>
+                            <BambooJevNotice
+                              profile={available.find((model) => model.id ===
+                                (index === 0 ? values.profile0 : values.profile1)
+                              )}
+                            />
                             {!models.isPending && !available.length && (
                               <p className="arcade-notice">
                                 {a('models_empty')}{' '}

@@ -77,3 +77,8 @@ Run `pnpm test`, `pnpm test:runner`, `pnpm typecheck`, `pnpm build`, and `pnpm b
 The optional `node scripts/smoke-arcade-models.mjs --confirm-live` uses an existing private `artifacts/local-fixture.json` login and saved OpenRouter/System One profiles against port 5091. It makes paid calls under the same enforced no-thinking policy, stops at five dispatches per side or 25 seconds, and waits for outstanding calls to settle. It never retries a failure automatically. Its sanitized local report records actual returned model names, latency and applied/discarded ticks; this is connection evidence, not a ranking.
 
 For Cloudflare deployment, use the existing documented D1/R2/secret setup and the appended arcade Durable Object migration. Never remove or rename the existing chess namespace or its migration. This feature does not automatically deploy or provision remote resources.
+# Snake 可比较 Harness 实验
+
+贪吃蛇新增创建时可选的 `config.snakeHarnessVersion`：`snake-harness-a-v1`（缺省原版）、`snake-harness-b-v1`（仅策略）、`snake-harness-c-v1`（B加可见状态整理）。仅下一局可选，局内不能更换，规则仍为20×20、3格/s、120秒。其他游戏不使用该字段。尚无独立验收通过前默认保持A。
+
+参见 [真实死亡窗口](experiments/snake-harness-v1/trace-audit.md)、[实验预声明](experiments/snake-harness-v1/preregistration.md)、[版本与回滚/GEPA边界](experiments/snake-harness-v1/design.md)。实验通过现有账号与模型配置运行，绝不自动发布社区或部署生产。

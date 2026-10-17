@@ -14,6 +14,7 @@ import { currentPathWithQuery } from '@/lib/redirect';
 import { m } from '@/paraglide/messages.js';
 import { getLocale } from '@/paraglide/runtime.js';
 import { Button } from '@/components/ui/button';
+import { BAMBOONODE_ACCOUNT_URL } from './model-errors';
 
 import {
   bambooConnectionKey,
@@ -129,6 +130,7 @@ export function BambooModelConnection() {
         <strong>{m['arena.bamboo.title']()}</strong>
         <p aria-live="polite">{statusText}</p>
         <small>{m['arena.bamboo.quota_note']()}</small>
+        <small>{m['arena.bamboo.jev_paid']()}</small>
         {data?.message && (
           <p className="arena-bamboo-message">{data.message}</p>
         )}
@@ -219,12 +221,12 @@ export function BambooModelConnection() {
             </Button>
           ))}
         <a
-          href="https://bamboonode.dev"
+          href={BAMBOONODE_ACCOUNT_URL}
           target="_blank"
           rel="noreferrer"
           className="arena-text-link"
         >
-          {m['arena.bamboo.account']()}
+          {m['arena.bamboo.top_up']()}
           <ArrowUpRight size={13} />
         </a>
       </div>

@@ -20,6 +20,8 @@ export interface GameAdapter {
   restore(state: unknown): GameState;
 }
 export type BambooNodeProviderId = 'bamboonode-systemone' | 'bamboonode-decisions';
+/** Safe persisted error marker; provider response text never enters match events. */
+export const BAMBOONODE_INSUFFICIENT_QUOTA = 'BAMBOONODE_INSUFFICIENT_QUOTA';
 export type ProviderId = 'openrouter' | 'systemone' | 'custom-openrouter' | 'custom-systemone' | BambooNodeProviderId;
 export interface PublicModelProfile { name: string; provider: ProviderId; model: string; thinkMode?: 'never' | 'auto' | 'always'; thinkBudget?: number }
 export interface ModelProfile extends PublicModelProfile { id: string; ownerId: string; endpoint: string; credentialId: string }

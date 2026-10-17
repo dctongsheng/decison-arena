@@ -1,0 +1,3616 @@
+{
+  "schemaVersion": 1,
+  "gameId": "snake",
+  "defaultHarness": "snake-harness-a-v1",
+  "defaultChanged": false,
+  "seedsReference": "seeds.json",
+  "seedIndexBase": 1,
+  "rulesVersions": [
+    "snake-realtime-v2"
+  ],
+  "harnessVersions": [
+    "snake-harness-a-v1",
+    "snake-harness-b-v1",
+    "snake-harness-c-v1"
+  ],
+  "promptVersions": [
+    "decision-arena-arcade-v4"
+  ],
+  "sourceHash": "af32f92856958dd41ea948b5a6b7bde59a14848f5c3e59511491808d3f8e958c",
+  "planHash": "28383681077b56c46e5d9e0f6a2d05c47689d30d75e312c7a41edf7a18fc4541",
+  "developmentSourceHash": "af32f92856958dd41ea948b5a6b7bde59a14848f5c3e59511491808d3f8e958c",
+  "halted": false,
+  "globalMaxRequests": 4000,
+  "externalBlocked": [
+    {
+      "provider": "systemone",
+      "httpStatus": 401,
+      "includedInScores": false
+    }
+  ],
+  "method": "Paired percentile bootstrap; 10000 resamples; fixed seeds 20261017/20261018; two 97.5% two-sided intervals; nominal Bonferroni familywise target 0.05; bootstrap approximation.",
+  "quantileMethod": "R-7 linear interpolation",
+  "originalRule": "food first, then survivedTicks; missing survival on equal food is unresolved",
+  "timingMeaning": "appliedTick is input acceptance before a physics tick, not a completed snake turn; later inputs can replace a queued turn",
+  "evidenceLimit": "Development is separate. Repeated seeds are descriptive and excluded from confidence intervals. Failed, incomplete or invalid-replay runs are not scored as zero. Passing gates is evidence only for the tested model, not all models, and does not change the default.",
+  "totals": {
+    "development": {
+      "sessions": 3,
+      "eligibleSessions": 3,
+      "requests": 28,
+      "requestCountComplete": true,
+      "returnedDecisions": 28,
+      "missingDecisionRecords": 0,
+      "errorSessions": 0,
+      "invalidReplays": 0,
+      "outcomes": {
+        "applied": 25,
+        "dropped": 3,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "count": 28,
+        "mean": 900.6785714285714,
+        "median": 814.5,
+        "p95": 1296.2999999999993,
+        "min": 770,
+        "max": 1740
+      },
+      "observedToSettledTicks": {
+        "count": 28,
+        "mean": 50.07142857142857,
+        "median": 48.5,
+        "p95": 61.65,
+        "min": 12,
+        "max": 86
+      },
+      "observedToAppliedTicks": {
+        "count": 25,
+        "mean": 53.52,
+        "median": 50,
+        "p95": 62.8,
+        "min": 47,
+        "max": 87
+      },
+      "observedToSettledMoves": {
+        "count": 28,
+        "mean": 2.392857142857143,
+        "median": 2,
+        "p95": 3,
+        "min": 0,
+        "max": 4
+      },
+      "observedToAppliedMoves": {
+        "count": 25,
+        "mean": 2.64,
+        "median": 3,
+        "p95": 3,
+        "min": 2,
+        "max": 4
+      },
+      "longestNoScoreMoves": {
+        "count": 3,
+        "mean": 22.333333333333332,
+        "median": 16,
+        "p95": 34.9,
+        "min": 14,
+        "max": 37
+      },
+      "completedStateCycles": {
+        "count": 3,
+        "mean": 0,
+        "median": 0,
+        "p95": 0,
+        "min": 0,
+        "max": 0
+      },
+      "repeatedFullStateVisits": {
+        "count": 3,
+        "mean": 0,
+        "median": 0,
+        "p95": 0,
+        "min": 0,
+        "max": 0
+      },
+      "thoughtUsed": {
+        "true": 0,
+        "false": 0,
+        "unreported": 28
+      },
+      "actualModels": [
+        "typesafe/jev-1.13-20260917"
+      ]
+    },
+    "formal": {
+      "sessions": 75,
+      "eligibleSessions": 75,
+      "requests": 995,
+      "requestCountComplete": true,
+      "returnedDecisions": 995,
+      "missingDecisionRecords": 0,
+      "errorSessions": 0,
+      "invalidReplays": 0,
+      "outcomes": {
+        "applied": 921,
+        "dropped": 74,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "count": 995,
+        "mean": 1035.427135678392,
+        "median": 898,
+        "p95": 1559.6,
+        "min": 762,
+        "max": 7968
+      },
+      "observedToSettledTicks": {
+        "count": 995,
+        "mean": 59.447236180904525,
+        "median": 53,
+        "p95": 90.29999999999995,
+        "min": 10,
+        "max": 257
+      },
+      "observedToAppliedTicks": {
+        "count": 921,
+        "mean": 61.44842562432139,
+        "median": 55,
+        "p95": 91,
+        "min": 47,
+        "max": 221
+      },
+      "observedToSettledMoves": {
+        "count": 995,
+        "mean": 2.91356783919598,
+        "median": 3,
+        "p95": 5,
+        "min": 0,
+        "max": 12
+      },
+      "observedToAppliedMoves": {
+        "count": 921,
+        "mean": 3.046688382193268,
+        "median": 3,
+        "p95": 5,
+        "min": 2,
+        "max": 11
+      },
+      "longestNoScoreMoves": {
+        "count": 75,
+        "mean": 33.053333333333335,
+        "median": 20,
+        "p95": 75.3,
+        "min": 11,
+        "max": 120
+      },
+      "completedStateCycles": {
+        "count": 75,
+        "mean": 0.21333333333333335,
+        "median": 0,
+        "p95": 1,
+        "min": 0,
+        "max": 2
+      },
+      "repeatedFullStateVisits": {
+        "count": 75,
+        "mean": 1.6266666666666667,
+        "median": 0,
+        "p95": 10.499999999999986,
+        "min": 0,
+        "max": 21
+      },
+      "thoughtUsed": {
+        "true": 0,
+        "false": 0,
+        "unreported": 995
+      },
+      "actualModels": [
+        "typesafe/jev-1.13-20260917"
+      ]
+    }
+  },
+  "models": [
+    {
+      "modelIndex": 1,
+      "provider": "openrouter",
+      "requestedModel": "typesafe/jev-1.13",
+      "requestedModelIsServiceDefault": false,
+      "thinkMode": "never",
+      "actualModels": [
+        "typesafe/jev-1.13-20260917"
+      ],
+      "development": {
+        "metrics": {
+          "sessions": 3,
+          "eligibleSessions": 3,
+          "requests": 28,
+          "requestCountComplete": true,
+          "returnedDecisions": 28,
+          "missingDecisionRecords": 0,
+          "errorSessions": 0,
+          "invalidReplays": 0,
+          "outcomes": {
+            "applied": 25,
+            "dropped": 3,
+            "failed": 0,
+            "unknown": 0
+          },
+          "latencyMs": {
+            "count": 28,
+            "mean": 900.6785714285714,
+            "median": 814.5,
+            "p95": 1296.2999999999993,
+            "min": 770,
+            "max": 1740
+          },
+          "observedToSettledTicks": {
+            "count": 28,
+            "mean": 50.07142857142857,
+            "median": 48.5,
+            "p95": 61.65,
+            "min": 12,
+            "max": 86
+          },
+          "observedToAppliedTicks": {
+            "count": 25,
+            "mean": 53.52,
+            "median": 50,
+            "p95": 62.8,
+            "min": 47,
+            "max": 87
+          },
+          "observedToSettledMoves": {
+            "count": 28,
+            "mean": 2.392857142857143,
+            "median": 2,
+            "p95": 3,
+            "min": 0,
+            "max": 4
+          },
+          "observedToAppliedMoves": {
+            "count": 25,
+            "mean": 2.64,
+            "median": 3,
+            "p95": 3,
+            "min": 2,
+            "max": 4
+          },
+          "longestNoScoreMoves": {
+            "count": 3,
+            "mean": 22.333333333333332,
+            "median": 16,
+            "p95": 34.9,
+            "min": 14,
+            "max": 37
+          },
+          "completedStateCycles": {
+            "count": 3,
+            "mean": 0,
+            "median": 0,
+            "p95": 0,
+            "min": 0,
+            "max": 0
+          },
+          "repeatedFullStateVisits": {
+            "count": 3,
+            "mean": 0,
+            "median": 0,
+            "p95": 0,
+            "min": 0,
+            "max": 0
+          },
+          "thoughtUsed": {
+            "true": 0,
+            "false": 0,
+            "unreported": 28
+          },
+          "actualModels": [
+            "typesafe/jev-1.13-20260917"
+          ]
+        },
+        "variants": [
+          {
+            "variant": "A",
+            "meanFood": 0,
+            "meanSurvivedTicks": 760,
+            "metrics": {
+              "sessions": 1,
+              "eligibleSessions": 1,
+              "requests": 14,
+              "requestCountComplete": true,
+              "returnedDecisions": 14,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 13,
+                "dropped": 1,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 14,
+                "mean": 889.7142857142857,
+                "median": 827.5,
+                "p95": 1161.3999999999999,
+                "min": 770,
+                "max": 1437
+              },
+              "observedToSettledTicks": {
+                "count": 14,
+                "mean": 52.285714285714285,
+                "median": 49,
+                "p95": 69.74999999999999,
+                "min": 34,
+                "max": 86
+              },
+              "observedToAppliedTicks": {
+                "count": 13,
+                "mean": 54.69230769230769,
+                "median": 50,
+                "p95": 71.99999999999997,
+                "min": 47,
+                "max": 87
+              },
+              "observedToSettledMoves": {
+                "count": 14,
+                "mean": 2.5,
+                "median": 2.5,
+                "p95": 3.3499999999999996,
+                "min": 1,
+                "max": 4
+              },
+              "observedToAppliedMoves": {
+                "count": 13,
+                "mean": 2.6923076923076925,
+                "median": 3,
+                "p95": 3.3999999999999986,
+                "min": 2,
+                "max": 4
+              },
+              "longestNoScoreMoves": {
+                "count": 1,
+                "mean": 37,
+                "median": 37,
+                "p95": 37,
+                "min": 37,
+                "max": 37
+              },
+              "completedStateCycles": {
+                "count": 1,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "repeatedFullStateVisits": {
+                "count": 1,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 14
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          },
+          {
+            "variant": "B",
+            "meanFood": 0,
+            "meanSurvivedTicks": 300,
+            "metrics": {
+              "sessions": 1,
+              "eligibleSessions": 1,
+              "requests": 6,
+              "requestCountComplete": true,
+              "returnedDecisions": 6,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 5,
+                "dropped": 1,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 6,
+                "mean": 970,
+                "median": 786,
+                "p95": 1545.5,
+                "min": 772,
+                "max": 1740
+              },
+              "observedToSettledTicks": {
+                "count": 6,
+                "mean": 47.833333333333336,
+                "median": 46.5,
+                "p95": 55.25,
+                "min": 43,
+                "max": 58
+              },
+              "observedToAppliedTicks": {
+                "count": 5,
+                "mean": 49.8,
+                "median": 48,
+                "p95": 56.8,
+                "min": 47,
+                "max": 59
+              },
+              "observedToSettledMoves": {
+                "count": 6,
+                "mean": 2.1666666666666665,
+                "median": 2,
+                "p95": 2.75,
+                "min": 2,
+                "max": 3
+              },
+              "observedToAppliedMoves": {
+                "count": 5,
+                "mean": 2.4,
+                "median": 2,
+                "p95": 3,
+                "min": 2,
+                "max": 3
+              },
+              "longestNoScoreMoves": {
+                "count": 1,
+                "mean": 14,
+                "median": 14,
+                "p95": 14,
+                "min": 14,
+                "max": 14
+              },
+              "completedStateCycles": {
+                "count": 1,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "repeatedFullStateVisits": {
+                "count": 1,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 6
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          },
+          {
+            "variant": "C",
+            "meanFood": 1,
+            "meanSurvivedTicks": 400,
+            "metrics": {
+              "sessions": 1,
+              "eligibleSessions": 1,
+              "requests": 8,
+              "requestCountComplete": true,
+              "returnedDecisions": 8,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 7,
+                "dropped": 1,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 8,
+                "mean": 867.875,
+                "median": 829,
+                "p95": 1029.4,
+                "min": 787,
+                "max": 1035
+              },
+              "observedToSettledTicks": {
+                "count": 8,
+                "mean": 47.875,
+                "median": 50,
+                "p95": 61.650000000000006,
+                "min": 12,
+                "max": 62
+              },
+              "observedToAppliedTicks": {
+                "count": 7,
+                "mean": 54,
+                "median": 52,
+                "p95": 62.699999999999996,
+                "min": 49,
+                "max": 63
+              },
+              "observedToSettledMoves": {
+                "count": 8,
+                "mean": 2.375,
+                "median": 3,
+                "p95": 3,
+                "min": 0,
+                "max": 3
+              },
+              "observedToAppliedMoves": {
+                "count": 7,
+                "mean": 2.7142857142857144,
+                "median": 3,
+                "p95": 3,
+                "min": 2,
+                "max": 3
+              },
+              "longestNoScoreMoves": {
+                "count": 1,
+                "mean": 16,
+                "median": 16,
+                "p95": 16,
+                "min": 16,
+                "max": 16
+              },
+              "completedStateCycles": {
+                "count": 1,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "repeatedFullStateVisits": {
+                "count": 1,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 8
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          }
+        ],
+        "seeds": [
+          {
+            "seedIndex": 1,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 760,
+                "endReason": "WALL_COLLISION",
+                "requests": 14,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 37,
+                "longestNoScoreMoves": 37,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 300,
+                "endReason": "WALL_COLLISION",
+                "requests": 6,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 14,
+                "longestNoScoreMoves": 14,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 400,
+                "endReason": "WALL_COLLISION",
+                "requests": 8,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 19,
+                "longestNoScoreMoves": 16,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "independent": {
+        "metrics": {
+          "sessions": 60,
+          "eligibleSessions": 60,
+          "requests": 826,
+          "requestCountComplete": true,
+          "returnedDecisions": 826,
+          "missingDecisionRecords": 0,
+          "errorSessions": 0,
+          "invalidReplays": 0,
+          "outcomes": {
+            "applied": 767,
+            "dropped": 59,
+            "failed": 0,
+            "unknown": 0
+          },
+          "latencyMs": {
+            "count": 826,
+            "mean": 1012.0811138014528,
+            "median": 887,
+            "p95": 1445.25,
+            "min": 762,
+            "max": 7959
+          },
+          "observedToSettledTicks": {
+            "count": 826,
+            "mean": 58.35351089588378,
+            "median": 53,
+            "p95": 86,
+            "min": 10,
+            "max": 257
+          },
+          "observedToAppliedTicks": {
+            "count": 767,
+            "mean": 60.43285528031291,
+            "median": 54,
+            "p95": 87,
+            "min": 47,
+            "max": 221
+          },
+          "observedToSettledMoves": {
+            "count": 826,
+            "mean": 2.8595641646489103,
+            "median": 3,
+            "p95": 4,
+            "min": 0,
+            "max": 12
+          },
+          "observedToAppliedMoves": {
+            "count": 767,
+            "mean": 2.9934810951760102,
+            "median": 3,
+            "p95": 4,
+            "min": 2,
+            "max": 11
+          },
+          "longestNoScoreMoves": {
+            "count": 60,
+            "mean": 33.96666666666667,
+            "median": 22.5,
+            "p95": 74.1,
+            "min": 12,
+            "max": 120
+          },
+          "completedStateCycles": {
+            "count": 60,
+            "mean": 0.23333333333333334,
+            "median": 0,
+            "p95": 1,
+            "min": 0,
+            "max": 1
+          },
+          "repeatedFullStateVisits": {
+            "count": 60,
+            "mean": 1.6833333333333333,
+            "median": 0,
+            "p95": 9.249999999999986,
+            "min": 0,
+            "max": 18
+          },
+          "thoughtUsed": {
+            "true": 0,
+            "false": 0,
+            "unreported": 826
+          },
+          "actualModels": [
+            "typesafe/jev-1.13-20260917"
+          ]
+        },
+        "variants": [
+          {
+            "variant": "A",
+            "meanFood": 0.8,
+            "meanSurvivedTicks": 813,
+            "metrics": {
+              "sessions": 20,
+              "eligibleSessions": 20,
+              "requests": 271,
+              "requestCountComplete": true,
+              "returnedDecisions": 271,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 251,
+                "dropped": 20,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 271,
+                "mean": 1015.2435424354244,
+                "median": 903,
+                "p95": 1460,
+                "min": 773,
+                "max": 7959
+              },
+              "observedToSettledTicks": {
+                "count": 271,
+                "mean": 58,
+                "median": 53,
+                "p95": 86,
+                "min": 12,
+                "max": 142
+              },
+              "observedToAppliedTicks": {
+                "count": 251,
+                "mean": 60.147410358565736,
+                "median": 55,
+                "p95": 86.5,
+                "min": 47,
+                "max": 143
+              },
+              "observedToSettledMoves": {
+                "count": 271,
+                "mean": 2.8265682656826567,
+                "median": 3,
+                "p95": 4,
+                "min": 0,
+                "max": 7
+              },
+              "observedToAppliedMoves": {
+                "count": 251,
+                "mean": 2.9840637450199203,
+                "median": 3,
+                "p95": 4,
+                "min": 2,
+                "max": 7
+              },
+              "longestNoScoreMoves": {
+                "count": 20,
+                "mean": 31.6,
+                "median": 25,
+                "p95": 50.65000000000005,
+                "min": 12,
+                "max": 120
+              },
+              "completedStateCycles": {
+                "count": 20,
+                "mean": 0.1,
+                "median": 0,
+                "p95": 1,
+                "min": 0,
+                "max": 1
+              },
+              "repeatedFullStateVisits": {
+                "count": 20,
+                "mean": 1,
+                "median": 0,
+                "p95": 2.8000000000000114,
+                "min": 0,
+                "max": 18
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 271
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          },
+          {
+            "variant": "B",
+            "meanFood": 0.45,
+            "meanSurvivedTicks": 932,
+            "metrics": {
+              "sessions": 20,
+              "eligibleSessions": 20,
+              "requests": 298,
+              "requestCountComplete": true,
+              "returnedDecisions": 298,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 279,
+                "dropped": 19,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 298,
+                "mean": 1045.523489932886,
+                "median": 891,
+                "p95": 1466.6499999999996,
+                "min": 769,
+                "max": 6634
+              },
+              "observedToSettledTicks": {
+                "count": 298,
+                "mean": 60.54362416107382,
+                "median": 53,
+                "p95": 88.14999999999998,
+                "min": 10,
+                "max": 257
+              },
+              "observedToAppliedTicks": {
+                "count": 279,
+                "mean": 62.053763440860216,
+                "median": 54,
+                "p95": 88.09999999999997,
+                "min": 48,
+                "max": 221
+              },
+              "observedToSettledMoves": {
+                "count": 298,
+                "mean": 2.9798657718120807,
+                "median": 3,
+                "p95": 5,
+                "min": 0,
+                "max": 12
+              },
+              "observedToAppliedMoves": {
+                "count": 279,
+                "mean": 3.068100358422939,
+                "median": 3,
+                "p95": 5,
+                "min": 2,
+                "max": 11
+              },
+              "longestNoScoreMoves": {
+                "count": 20,
+                "mean": 38.7,
+                "median": 27.5,
+                "p95": 75.50000000000003,
+                "min": 15,
+                "max": 104
+              },
+              "completedStateCycles": {
+                "count": 20,
+                "mean": 0.25,
+                "median": 0,
+                "p95": 1,
+                "min": 0,
+                "max": 1
+              },
+              "repeatedFullStateVisits": {
+                "count": 20,
+                "mean": 2,
+                "median": 0,
+                "p95": 14.05,
+                "min": 0,
+                "max": 15
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 298
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          },
+          {
+            "variant": "C",
+            "meanFood": 0.25,
+            "meanSurvivedTicks": 750,
+            "metrics": {
+              "sessions": 20,
+              "eligibleSessions": 20,
+              "requests": 257,
+              "requestCountComplete": true,
+              "returnedDecisions": 257,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 237,
+                "dropped": 20,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 257,
+                "mean": 969.9688715953307,
+                "median": 877,
+                "p95": 1358,
+                "min": 762,
+                "max": 2375
+              },
+              "observedToSettledTicks": {
+                "count": 257,
+                "mean": 56.18677042801556,
+                "median": 52,
+                "p95": 82,
+                "min": 12,
+                "max": 142
+              },
+              "observedToAppliedTicks": {
+                "count": 237,
+                "mean": 58.82700421940928,
+                "median": 53,
+                "p95": 83,
+                "min": 47,
+                "max": 143
+              },
+              "observedToSettledMoves": {
+                "count": 257,
+                "mean": 2.754863813229572,
+                "median": 3,
+                "p95": 4,
+                "min": 0,
+                "max": 7
+              },
+              "observedToAppliedMoves": {
+                "count": 237,
+                "mean": 2.9156118143459917,
+                "median": 3,
+                "p95": 4,
+                "min": 2,
+                "max": 7
+              },
+              "longestNoScoreMoves": {
+                "count": 20,
+                "mean": 31.6,
+                "median": 20,
+                "p95": 71.25,
+                "min": 12,
+                "max": 76
+              },
+              "completedStateCycles": {
+                "count": 20,
+                "mean": 0.35,
+                "median": 0,
+                "p95": 1,
+                "min": 0,
+                "max": 1
+              },
+              "repeatedFullStateVisits": {
+                "count": 20,
+                "mean": 2.05,
+                "median": 0,
+                "p95": 9,
+                "min": 0,
+                "max": 9
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 257
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          }
+        ],
+        "seeds": [
+          {
+            "seedIndex": 1,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 1020,
+                "endReason": "WALL_COLLISION",
+                "requests": 18,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 50,
+                "longestNoScoreMoves": 23,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 800,
+                "endReason": "WALL_COLLISION",
+                "requests": 13,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 39,
+                "longestNoScoreMoves": 15,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1440,
+                "endReason": "WALL_COLLISION",
+                "requests": 24,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 71,
+                "longestNoScoreMoves": 71,
+                "repeatedFullStateVisits": 8,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 24,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 2,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 1280,
+                "endReason": "WALL_COLLISION",
+                "requests": 20,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 63,
+                "longestNoScoreMoves": 36,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 820,
+                "endReason": "WALL_COLLISION",
+                "requests": 12,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 40,
+                "longestNoScoreMoves": 25,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1340,
+                "endReason": "WALL_COLLISION",
+                "requests": 22,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 66,
+                "longestNoScoreMoves": 66,
+                "repeatedFullStateVisits": 5,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 26,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 3,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 8,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 12,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 320,
+                "endReason": "WALL_COLLISION",
+                "requests": 6,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 15,
+                "longestNoScoreMoves": 15,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1180,
+                "endReason": "WALL_COLLISION",
+                "requests": 21,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 58,
+                "longestNoScoreMoves": 58,
+                "repeatedFullStateVisits": 9,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 46,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 4,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 440,
+                "endReason": "WALL_COLLISION",
+                "requests": 8,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 21,
+                "longestNoScoreMoves": 19,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1500,
+                "endReason": "WALL_COLLISION",
+                "requests": 23,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 74,
+                "longestNoScoreMoves": 74,
+                "repeatedFullStateVisits": 15,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 26,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 20,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 5,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 360,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 17,
+                "longestNoScoreMoves": 17,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 360,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 17,
+                "longestNoScoreMoves": 17,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 280,
+                "endReason": "WALL_COLLISION",
+                "requests": 5,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 13,
+                "longestNoScoreMoves": 13,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 6,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 960,
+                "endReason": "WALL_COLLISION",
+                "requests": 13,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 47,
+                "longestNoScoreMoves": 47,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 340,
+                "endReason": "WALL_COLLISION",
+                "requests": 4,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 16,
+                "longestNoScoreMoves": 16,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 720,
+                "endReason": "WALL_COLLISION",
+                "requests": 13,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 35,
+                "longestNoScoreMoves": 35,
+                "repeatedFullStateVisits": 2,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 24,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 7,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 780,
+                "endReason": "WALL_COLLISION",
+                "requests": 12,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 38,
+                "longestNoScoreMoves": 38,
+                "repeatedFullStateVisits": 2,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 24,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1180,
+                "endReason": "WALL_COLLISION",
+                "requests": 19,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 58,
+                "longestNoScoreMoves": 58,
+                "repeatedFullStateVisits": 4,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 22,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 260,
+                "endReason": "WALL_COLLISION",
+                "requests": 5,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 12,
+                "longestNoScoreMoves": 12,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 8,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 1000,
+                "endReason": "WALL_COLLISION",
+                "requests": 16,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 49,
+                "longestNoScoreMoves": 31,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 1440,
+                "endReason": "WALL_COLLISION",
+                "requests": 25,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 71,
+                "longestNoScoreMoves": 42,
+                "repeatedFullStateVisits": 4,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 24,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1360,
+                "endReason": "WALL_COLLISION",
+                "requests": 22,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 67,
+                "longestNoScoreMoves": 67,
+                "repeatedFullStateVisits": 4,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 22,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 9,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 500,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 24,
+                "longestNoScoreMoves": 19,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 440,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 21,
+                "longestNoScoreMoves": 16,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 380,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 18,
+                "longestNoScoreMoves": 13,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 10,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 900,
+                "endReason": "WALL_COLLISION",
+                "requests": 15,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 44,
+                "longestNoScoreMoves": 44,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 1880,
+                "endReason": "WALL_COLLISION",
+                "requests": 31,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 93,
+                "longestNoScoreMoves": 64,
+                "repeatedFullStateVisits": 14,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 20,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 320,
+                "endReason": "WALL_COLLISION",
+                "requests": 5,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 15,
+                "longestNoScoreMoves": 15,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 11,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 700,
+                "endReason": "WALL_COLLISION",
+                "requests": 12,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 34,
+                "longestNoScoreMoves": 16,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 2100,
+                "endReason": "WALL_COLLISION",
+                "requests": 31,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 104,
+                "longestNoScoreMoves": 104,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 2720,
+                "endReason": "WALL_COLLISION",
+                "requests": 45,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 135,
+                "longestNoScoreMoves": 76,
+                "repeatedFullStateVisits": 9,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 24,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 12,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 2600,
+                "endReason": "WALL_COLLISION",
+                "requests": 43,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 129,
+                "longestNoScoreMoves": 120,
+                "repeatedFullStateVisits": 18,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 74,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 660,
+                "endReason": "WALL_COLLISION",
+                "requests": 9,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 32,
+                "longestNoScoreMoves": 32,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 260,
+                "endReason": "WALL_COLLISION",
+                "requests": 5,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 12,
+                "longestNoScoreMoves": 12,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 13,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 300,
+                "endReason": "WALL_COLLISION",
+                "requests": 6,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 14,
+                "longestNoScoreMoves": 14,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 340,
+                "endReason": "WALL_COLLISION",
+                "requests": 6,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 16,
+                "longestNoScoreMoves": 16,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 18,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 14,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 1280,
+                "endReason": "WALL_COLLISION",
+                "requests": 21,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 63,
+                "longestNoScoreMoves": 44,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 440,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 21,
+                "longestNoScoreMoves": 18,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 8,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 20,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 15,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 360,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 17,
+                "longestNoScoreMoves": 17,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 360,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 17,
+                "longestNoScoreMoves": 17,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 8,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 20,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 16,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 380,
+                "endReason": "WALL_COLLISION",
+                "requests": 8,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 18,
+                "longestNoScoreMoves": 15,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 380,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 18,
+                "longestNoScoreMoves": 18,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 520,
+                "endReason": "WALL_COLLISION",
+                "requests": 9,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 25,
+                "longestNoScoreMoves": 25,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 17,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 1060,
+                "endReason": "WALL_COLLISION",
+                "requests": 19,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 52,
+                "longestNoScoreMoves": 27,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1200,
+                "endReason": "WALL_COLLISION",
+                "requests": 19,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 59,
+                "longestNoScoreMoves": 59,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 20,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 18,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 560,
+                "endReason": "WALL_COLLISION",
+                "requests": 9,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 27,
+                "longestNoScoreMoves": 27,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1500,
+                "endReason": "WALL_COLLISION",
+                "requests": 21,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 74,
+                "longestNoScoreMoves": 74,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 1540,
+                "endReason": "WALL_COLLISION",
+                "requests": 26,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 76,
+                "longestNoScoreMoves": 44,
+                "repeatedFullStateVisits": 4,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 24,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 19,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 460,
+                "endReason": "WALL_COLLISION",
+                "requests": 8,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 22,
+                "longestNoScoreMoves": 22,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 980,
+                "endReason": "WALL_COLLISION",
+                "requests": 17,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 48,
+                "longestNoScoreMoves": 30,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 320,
+                "endReason": "WALL_COLLISION",
+                "requests": 6,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 15,
+                "longestNoScoreMoves": 15,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 20,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 900,
+                "endReason": "WALL_COLLISION",
+                "requests": 14,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 44,
+                "longestNoScoreMoves": 44,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 1600,
+                "endReason": "WALL_COLLISION",
+                "requests": 27,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 79,
+                "longestNoScoreMoves": 64,
+                "repeatedFullStateVisits": 3,
+                "completedStateCycles": 1,
+                "longestCycleMoves": 30,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 260,
+                "endReason": "WALL_COLLISION",
+                "requests": 5,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 12,
+                "longestNoScoreMoves": 12,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "repeated": {
+        "metrics": {
+          "sessions": 15,
+          "eligibleSessions": 15,
+          "requests": 169,
+          "requestCountComplete": true,
+          "returnedDecisions": 169,
+          "missingDecisionRecords": 0,
+          "errorSessions": 0,
+          "invalidReplays": 0,
+          "outcomes": {
+            "applied": 154,
+            "dropped": 15,
+            "failed": 0,
+            "unknown": 0
+          },
+          "latencyMs": {
+            "count": 169,
+            "mean": 1149.5325443786983,
+            "median": 947,
+            "p95": 1875.1999999999998,
+            "min": 776,
+            "max": 7968
+          },
+          "observedToSettledTicks": {
+            "count": 169,
+            "mean": 64.79289940828403,
+            "median": 56,
+            "p95": 106,
+            "min": 21,
+            "max": 163
+          },
+          "observedToAppliedTicks": {
+            "count": 154,
+            "mean": 66.50649350649351,
+            "median": 57.5,
+            "p95": 107,
+            "min": 48,
+            "max": 164
+          },
+          "observedToSettledMoves": {
+            "count": 169,
+            "mean": 3.1775147928994083,
+            "median": 3,
+            "p95": 5,
+            "min": 0,
+            "max": 8
+          },
+          "observedToAppliedMoves": {
+            "count": 154,
+            "mean": 3.311688311688312,
+            "median": 3,
+            "p95": 5,
+            "min": 2,
+            "max": 8
+          },
+          "longestNoScoreMoves": {
+            "count": 15,
+            "mean": 29.4,
+            "median": 18,
+            "p95": 76.79999999999998,
+            "min": 11,
+            "max": 81
+          },
+          "completedStateCycles": {
+            "count": 15,
+            "mean": 0.13333333333333333,
+            "median": 0,
+            "p95": 0.5999999999999979,
+            "min": 0,
+            "max": 2
+          },
+          "repeatedFullStateVisits": {
+            "count": 15,
+            "mean": 1.4,
+            "median": 0,
+            "p95": 6.299999999999978,
+            "min": 0,
+            "max": 21
+          },
+          "thoughtUsed": {
+            "true": 0,
+            "false": 0,
+            "unreported": 169
+          },
+          "actualModels": [
+            "typesafe/jev-1.13-20260917"
+          ]
+        },
+        "variants": [
+          {
+            "variant": "A",
+            "meanFood": 0.6,
+            "meanSurvivedTicks": 1172,
+            "metrics": {
+              "sessions": 5,
+              "eligibleSessions": 5,
+              "requests": 80,
+              "requestCountComplete": true,
+              "returnedDecisions": 80,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 75,
+                "dropped": 5,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 80,
+                "mean": 1199.4,
+                "median": 1042.5,
+                "p95": 1900.8999999999994,
+                "min": 780,
+                "max": 2717
+              },
+              "observedToSettledTicks": {
+                "count": 80,
+                "mean": 71.0125,
+                "median": 62.5,
+                "p95": 114.49999999999997,
+                "min": 21,
+                "max": 163
+              },
+              "observedToAppliedTicks": {
+                "count": 75,
+                "mean": 73.94666666666667,
+                "median": 64,
+                "p95": 117.99999999999997,
+                "min": 48,
+                "max": 164
+              },
+              "observedToSettledMoves": {
+                "count": 80,
+                "mean": 3.525,
+                "median": 3,
+                "p95": 6,
+                "min": 0,
+                "max": 8
+              },
+              "observedToAppliedMoves": {
+                "count": 75,
+                "mean": 3.6933333333333334,
+                "median": 3,
+                "p95": 6,
+                "min": 2,
+                "max": 8
+              },
+              "longestNoScoreMoves": {
+                "count": 5,
+                "mean": 44,
+                "median": 36,
+                "p95": 76.6,
+                "min": 17,
+                "max": 81
+              },
+              "completedStateCycles": {
+                "count": 5,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "repeatedFullStateVisits": {
+                "count": 5,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 80
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          },
+          {
+            "variant": "B",
+            "meanFood": 1,
+            "meanSurvivedTicks": 504,
+            "metrics": {
+              "sessions": 5,
+              "eligibleSessions": 5,
+              "requests": 43,
+              "requestCountComplete": true,
+              "returnedDecisions": 43,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 38,
+                "dropped": 5,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 43,
+                "mean": 981.0697674418604,
+                "median": 895,
+                "p95": 1425,
+                "min": 776,
+                "max": 1940
+              },
+              "observedToSettledTicks": {
+                "count": 43,
+                "mean": 56.53488372093023,
+                "median": 53,
+                "p95": 84.6,
+                "min": 22,
+                "max": 87
+              },
+              "observedToAppliedTicks": {
+                "count": 38,
+                "mean": 58.60526315789474,
+                "median": 54.5,
+                "p95": 86,
+                "min": 48,
+                "max": 88
+              },
+              "observedToSettledMoves": {
+                "count": 43,
+                "mean": 2.697674418604651,
+                "median": 3,
+                "p95": 4,
+                "min": 1,
+                "max": 4
+              },
+              "observedToAppliedMoves": {
+                "count": 38,
+                "mean": 2.8684210526315788,
+                "median": 3,
+                "p95": 4,
+                "min": 2,
+                "max": 5
+              },
+              "longestNoScoreMoves": {
+                "count": 5,
+                "mean": 17.2,
+                "median": 18,
+                "p95": 23.6,
+                "min": 11,
+                "max": 25
+              },
+              "completedStateCycles": {
+                "count": 5,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "repeatedFullStateVisits": {
+                "count": 5,
+                "mean": 0,
+                "median": 0,
+                "p95": 0,
+                "min": 0,
+                "max": 0
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 43
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          },
+          {
+            "variant": "C",
+            "meanFood": 0.4,
+            "meanSurvivedTicks": 588,
+            "metrics": {
+              "sessions": 5,
+              "eligibleSessions": 5,
+              "requests": 46,
+              "requestCountComplete": true,
+              "returnedDecisions": 46,
+              "missingDecisionRecords": 0,
+              "errorSessions": 0,
+              "invalidReplays": 0,
+              "outcomes": {
+                "applied": 41,
+                "dropped": 5,
+                "failed": 0,
+                "unknown": 0
+              },
+              "latencyMs": {
+                "count": 46,
+                "mean": 1220.2826086956522,
+                "median": 903.5,
+                "p95": 1996.25,
+                "min": 793,
+                "max": 7968
+              },
+              "observedToSettledTicks": {
+                "count": 46,
+                "mean": 61.69565217391305,
+                "median": 54.5,
+                "p95": 90.25,
+                "min": 37,
+                "max": 139
+              },
+              "observedToAppliedTicks": {
+                "count": 41,
+                "mean": 60.21951219512195,
+                "median": 55,
+                "p95": 89,
+                "min": 49,
+                "max": 112
+              },
+              "observedToSettledMoves": {
+                "count": 46,
+                "mean": 3.0217391304347827,
+                "median": 3,
+                "p95": 5,
+                "min": 1,
+                "max": 6
+              },
+              "observedToAppliedMoves": {
+                "count": 41,
+                "mean": 3.024390243902439,
+                "median": 3,
+                "p95": 5,
+                "min": 2,
+                "max": 5
+              },
+              "longestNoScoreMoves": {
+                "count": 5,
+                "mean": 27,
+                "median": 17,
+                "p95": 63.59999999999999,
+                "min": 12,
+                "max": 75
+              },
+              "completedStateCycles": {
+                "count": 5,
+                "mean": 0.4,
+                "median": 0,
+                "p95": 1.5999999999999996,
+                "min": 0,
+                "max": 2
+              },
+              "repeatedFullStateVisits": {
+                "count": 5,
+                "mean": 4.2,
+                "median": 0,
+                "p95": 16.799999999999997,
+                "min": 0,
+                "max": 21
+              },
+              "thoughtUsed": {
+                "true": 0,
+                "false": 0,
+                "unreported": 46
+              },
+              "actualModels": [
+                "typesafe/jev-1.13-20260917"
+              ]
+            }
+          }
+        ],
+        "seeds": [
+          {
+            "seedIndex": 1,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 2900,
+                "endReason": "WALL_COLLISION",
+                "requests": 38,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 144,
+                "longestNoScoreMoves": 81,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 860,
+                "endReason": "WALL_COLLISION",
+                "requests": 15,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 42,
+                "longestNoScoreMoves": 18,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 360,
+                "endReason": "WALL_COLLISION",
+                "requests": 6,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 17,
+                "longestNoScoreMoves": 17,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 5,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1200,
+                "endReason": "WALL_COLLISION",
+                "requests": 14,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 59,
+                "longestNoScoreMoves": 59,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 340,
+                "endReason": "WALL_COLLISION",
+                "requests": 5,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 16,
+                "longestNoScoreMoves": 14,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 260,
+                "endReason": "WALL_COLLISION",
+                "requests": 4,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 12,
+                "longestNoScoreMoves": 12,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 9,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 840,
+                "endReason": "WALL_COLLISION",
+                "requests": 12,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 41,
+                "longestNoScoreMoves": 36,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 2,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 11,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 380,
+                "endReason": "WALL_COLLISION",
+                "requests": 4,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 18,
+                "longestNoScoreMoves": 13,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 13,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 360,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 17,
+                "longestNoScoreMoves": 17,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 380,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 18,
+                "longestNoScoreMoves": 18,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 1,
+                "survivedTicks": 420,
+                "endReason": "WALL_COLLISION",
+                "requests": 7,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 20,
+                "longestNoScoreMoves": 18,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          },
+          {
+            "seedIndex": 17,
+            "versions": {
+              "A": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 560,
+                "endReason": "WALL_COLLISION",
+                "requests": 9,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 27,
+                "longestNoScoreMoves": 27,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "B": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 520,
+                "endReason": "WALL_COLLISION",
+                "requests": 9,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 25,
+                "longestNoScoreMoves": 25,
+                "repeatedFullStateVisits": 0,
+                "completedStateCycles": 0,
+                "longestCycleMoves": 0,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              },
+              "C": {
+                "phase": "complete",
+                "eligible": true,
+                "food": 0,
+                "survivedTicks": 1520,
+                "endReason": "WALL_COLLISION",
+                "requests": 25,
+                "replayValid": true,
+                "decisionsComplete": true,
+                "error": false,
+                "successfulMoves": 75,
+                "longestNoScoreMoves": 75,
+                "repeatedFullStateVisits": 21,
+                "completedStateCycles": 2,
+                "longestCycleMoves": 28,
+                "rulesVersion": "snake-realtime-v2",
+                "promptVersions": [
+                  "decision-arena-arcade-v4"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "repeatMinusOriginal": [
+        {
+          "seedIndex": 1,
+          "variant": "A",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 1880,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 1,
+          "variant": "B",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 60,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 1,
+          "variant": "C",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": -1080,
+          "referenceAvailable": true,
+          "originalRuleWinner": "original"
+        },
+        {
+          "seedIndex": 9,
+          "variant": "A",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 340,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 9,
+          "variant": "B",
+          "repetition": 1,
+          "foodDelta": 1,
+          "survivedTicksDelta": -20,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 9,
+          "variant": "C",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 0,
+          "referenceAvailable": true,
+          "originalRuleWinner": "tie"
+        },
+        {
+          "seedIndex": 17,
+          "variant": "A",
+          "repetition": 1,
+          "foodDelta": -2,
+          "survivedTicksDelta": -500,
+          "referenceAvailable": true,
+          "originalRuleWinner": "original"
+        },
+        {
+          "seedIndex": 17,
+          "variant": "B",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": -680,
+          "referenceAvailable": true,
+          "originalRuleWinner": "original"
+        },
+        {
+          "seedIndex": 17,
+          "variant": "C",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 1100,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 13,
+          "variant": "A",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 60,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 13,
+          "variant": "B",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 40,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 13,
+          "variant": "C",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 0,
+          "referenceAvailable": true,
+          "originalRuleWinner": "tie"
+        },
+        {
+          "seedIndex": 5,
+          "variant": "A",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": 840,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 5,
+          "variant": "B",
+          "repetition": 1,
+          "foodDelta": 1,
+          "survivedTicksDelta": -20,
+          "referenceAvailable": true,
+          "originalRuleWinner": "repeat"
+        },
+        {
+          "seedIndex": 5,
+          "variant": "C",
+          "repetition": 1,
+          "foodDelta": 0,
+          "survivedTicksDelta": -20,
+          "referenceAvailable": true,
+          "originalRuleWinner": "original"
+        }
+      ],
+      "comparisons": [
+        {
+          "variant": "B",
+          "contrast": "B minus A",
+          "meanFoodDifference": -0.35,
+          "confidenceLevel": 0.975,
+          "confidenceInterval": [
+            -0.8,
+            0.05
+          ],
+          "confidenceLowerBound": -0.8,
+          "pairedIndependentSeeds": 20,
+          "originalRule": {
+            "controlWins": 12,
+            "candidateWins": 6,
+            "ties": 2,
+            "unresolved": 0,
+            "netWins": -6
+          },
+          "pairs": [
+            {
+              "seedIndex": 4,
+              "foodDifference": -1,
+              "survivedTicksDifference": 1060,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 7,
+              "foodDifference": 0,
+              "survivedTicksDifference": 400,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 16,
+              "foodDifference": -1,
+              "survivedTicksDifference": 0,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 10,
+              "foodDifference": 1,
+              "survivedTicksDifference": 980,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 1,
+              "foodDifference": 0,
+              "survivedTicksDifference": -220,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 11,
+              "foodDifference": -2,
+              "survivedTicksDifference": 1400,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 20,
+              "foodDifference": 1,
+              "survivedTicksDifference": 700,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 6,
+              "foodDifference": 0,
+              "survivedTicksDifference": -620,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 19,
+              "foodDifference": 1,
+              "survivedTicksDifference": 520,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 8,
+              "foodDifference": -1,
+              "survivedTicksDifference": 440,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 18,
+              "foodDifference": 0,
+              "survivedTicksDifference": 940,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 3,
+              "foodDifference": -1,
+              "survivedTicksDifference": -100,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 9,
+              "foodDifference": 0,
+              "survivedTicksDifference": -60,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 2,
+              "foodDifference": -1,
+              "survivedTicksDifference": -460,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 15,
+              "foodDifference": 0,
+              "survivedTicksDifference": 0,
+              "originalRuleWinner": "tie"
+            },
+            {
+              "seedIndex": 17,
+              "foodDifference": -2,
+              "survivedTicksDifference": 140,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 12,
+              "foodDifference": -1,
+              "survivedTicksDifference": -1940,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 13,
+              "foodDifference": 0,
+              "survivedTicksDifference": 40,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 14,
+              "foodDifference": 0,
+              "survivedTicksDifference": -840,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 5,
+              "foodDifference": 0,
+              "survivedTicksDifference": 0,
+              "originalRuleWinner": "tie"
+            }
+          ],
+          "repeated": {
+            "pairedSeeds": 5,
+            "meanFoodDifference": 0.4,
+            "foodDifference": {
+              "count": 5,
+              "mean": 0.4,
+              "min": 0,
+              "max": 1,
+              "sampleStandardDeviation": 0.5477225575051662
+            },
+            "differenceFromOriginal": {
+              "count": 5,
+              "mean": 0.8,
+              "min": 0,
+              "max": 2,
+              "sampleStandardDeviation": 0.8366600265340756
+            },
+            "originalRule": {
+              "controlWins": 2,
+              "candidateWins": 3,
+              "ties": 0,
+              "unresolved": 0,
+              "netWins": 1
+            },
+            "pairs": [
+              {
+                "seedIndex": 1,
+                "repetition": 1,
+                "foodDifference": 0,
+                "survivedTicksDifference": -2040,
+                "differenceFromOriginal": 0,
+                "originalRuleWinner": "control"
+              },
+              {
+                "seedIndex": 9,
+                "repetition": 1,
+                "foodDifference": 1,
+                "survivedTicksDifference": -420,
+                "differenceFromOriginal": 1,
+                "originalRuleWinner": "candidate"
+              },
+              {
+                "seedIndex": 17,
+                "repetition": 1,
+                "foodDifference": 0,
+                "survivedTicksDifference": -40,
+                "differenceFromOriginal": 2,
+                "originalRuleWinner": "control"
+              },
+              {
+                "seedIndex": 13,
+                "repetition": 1,
+                "foodDifference": 0,
+                "survivedTicksDifference": 20,
+                "differenceFromOriginal": 0,
+                "originalRuleWinner": "candidate"
+              },
+              {
+                "seedIndex": 5,
+                "repetition": 1,
+                "foodDifference": 1,
+                "survivedTicksDifference": -860,
+                "differenceFromOriginal": 1,
+                "originalRuleWinner": "candidate"
+              }
+            ]
+          },
+          "gate": {
+            "passed": false,
+            "criteria": {
+              "twentyCompleteIndependentSeeds": true,
+              "fiveCompleteRepeatedSeeds": true,
+              "allFormalReplaysValidWithoutErrors": true,
+              "meanFoodImprovementAtLeastHalf": false,
+              "confidenceLowerBoundAboveZero": false,
+              "originalRuleNetWinsNonnegative": false,
+              "repeatedMeanFoodDifferenceNonnegative": true
+            },
+            "defaultChanged": false
+          }
+        },
+        {
+          "variant": "C",
+          "contrast": "C minus A",
+          "meanFoodDifference": -0.55,
+          "confidenceLevel": 0.975,
+          "confidenceInterval": [
+            -1,
+            -0.1
+          ],
+          "confidenceLowerBound": -1,
+          "pairedIndependentSeeds": 20,
+          "originalRule": {
+            "controlWins": 16,
+            "candidateWins": 4,
+            "ties": 0,
+            "unresolved": 0,
+            "netWins": -12
+          },
+          "pairs": [
+            {
+              "seedIndex": 4,
+              "foodDifference": -1,
+              "survivedTicksDifference": -20,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 7,
+              "foodDifference": 0,
+              "survivedTicksDifference": -520,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 16,
+              "foodDifference": -1,
+              "survivedTicksDifference": 140,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 10,
+              "foodDifference": 0,
+              "survivedTicksDifference": -580,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 1,
+              "foodDifference": -2,
+              "survivedTicksDifference": 420,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 11,
+              "foodDifference": 0,
+              "survivedTicksDifference": 2020,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 20,
+              "foodDifference": 0,
+              "survivedTicksDifference": -640,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 6,
+              "foodDifference": 0,
+              "survivedTicksDifference": -240,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 19,
+              "foodDifference": 0,
+              "survivedTicksDifference": -140,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 8,
+              "foodDifference": -2,
+              "survivedTicksDifference": 360,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 18,
+              "foodDifference": 1,
+              "survivedTicksDifference": 980,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 3,
+              "foodDifference": -1,
+              "survivedTicksDifference": 760,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 9,
+              "foodDifference": 0,
+              "survivedTicksDifference": -120,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 2,
+              "foodDifference": -2,
+              "survivedTicksDifference": 60,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 15,
+              "foodDifference": 0,
+              "survivedTicksDifference": 60,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 17,
+              "foodDifference": -2,
+              "survivedTicksDifference": -640,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 12,
+              "foodDifference": -1,
+              "survivedTicksDifference": -2340,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 13,
+              "foodDifference": 1,
+              "survivedTicksDifference": 120,
+              "originalRuleWinner": "candidate"
+            },
+            {
+              "seedIndex": 14,
+              "foodDifference": -1,
+              "survivedTicksDifference": -860,
+              "originalRuleWinner": "control"
+            },
+            {
+              "seedIndex": 5,
+              "foodDifference": 0,
+              "survivedTicksDifference": -80,
+              "originalRuleWinner": "control"
+            }
+          ],
+          "repeated": {
+            "pairedSeeds": 5,
+            "meanFoodDifference": -0.2,
+            "foodDifference": {
+              "count": 5,
+              "mean": -0.2,
+              "min": -2,
+              "max": 1,
+              "sampleStandardDeviation": 1.0954451150103321
+            },
+            "differenceFromOriginal": {
+              "count": 5,
+              "mean": 0.4,
+              "min": 0,
+              "max": 2,
+              "sampleStandardDeviation": 0.8944271909999161
+            },
+            "originalRule": {
+              "controlWins": 3,
+              "candidateWins": 2,
+              "ties": 0,
+              "unresolved": 0,
+              "netWins": -1
+            },
+            "pairs": [
+              {
+                "seedIndex": 1,
+                "repetition": 1,
+                "foodDifference": -2,
+                "survivedTicksDifference": -2540,
+                "differenceFromOriginal": 0,
+                "originalRuleWinner": "control"
+              },
+              {
+                "seedIndex": 9,
+                "repetition": 1,
+                "foodDifference": 0,
+                "survivedTicksDifference": -460,
+                "differenceFromOriginal": 0,
+                "originalRuleWinner": "control"
+              },
+              {
+                "seedIndex": 17,
+                "repetition": 1,
+                "foodDifference": 0,
+                "survivedTicksDifference": 960,
+                "differenceFromOriginal": 2,
+                "originalRuleWinner": "candidate"
+              },
+              {
+                "seedIndex": 13,
+                "repetition": 1,
+                "foodDifference": 1,
+                "survivedTicksDifference": 60,
+                "differenceFromOriginal": 0,
+                "originalRuleWinner": "candidate"
+              },
+              {
+                "seedIndex": 5,
+                "repetition": 1,
+                "foodDifference": 0,
+                "survivedTicksDifference": -940,
+                "differenceFromOriginal": 0,
+                "originalRuleWinner": "control"
+              }
+            ]
+          },
+          "gate": {
+            "passed": false,
+            "criteria": {
+              "twentyCompleteIndependentSeeds": true,
+              "fiveCompleteRepeatedSeeds": true,
+              "allFormalReplaysValidWithoutErrors": true,
+              "meanFoodImprovementAtLeastHalf": false,
+              "confidenceLowerBoundAboveZero": false,
+              "originalRuleNetWinsNonnegative": false,
+              "repeatedMeanFoodDifferenceNonnegative": false
+            },
+            "defaultChanged": false
+          }
+        }
+      ]
+    }
+  ]
+}

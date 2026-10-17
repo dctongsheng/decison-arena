@@ -1423,5 +1423,9 @@
   "arena.bamboo.billing": "调用计费",
   "arena.bamboo.own_quota": "本人账户额度",
   "arena.bamboo.managed_profile": "此配置来自账户模型目录，凭证由服务端管理。可通过上方重新授权或同步来更新访问状态。",
-  "arena.bamboo.model_unavailable": "暂不可用 · 请检查授权"
+  "arena.bamboo.model_unavailable": "暂不可用 · 请检查授权",
+  "arena.bamboo.jev_paid": "Jev 是收费模型，调用消耗本人 BambooNode 账户额度。开局前请检查余额，额度不足请先充值。",
+  "arena.bamboo.top_up": "去充值 / 查看额度",
+  "arena.bamboo.insufficient_quota": "本人 BambooNode 账户额度不足。请充值后返回此页，手动继续或重试对局；对局不会自动恢复。",
+  "arena.bamboo.forbidden_help": "模型请求返回 HTTP 403，仅凭该状态无法确定原因。请检查 BambooNode 账户额度及模型访问权限。"
 }

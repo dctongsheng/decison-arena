@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { useSession } from '@/core/auth/client';
 import { Link, useRouter } from '@/core/i18n/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { modelErrorKind, modelErrorText } from '@/blocks/arena/model-errors';
 import {
   ArenaShell,
   AuthGate,
@@ -123,6 +124,7 @@ function Room({ id }: { id: string }) {
         </div>
       </div>
       <ErrorNotice
+        providers={snapshot.runs.map((run) => run.controller.profile?.provider)}
         error={
           query.error ||
           command.error ||
@@ -404,6 +406,9 @@ function Room({ id }: { id: string }) {
                     ? `${(event.metrics.elapsedMs / 1000).toFixed(2)}s`
                     : a('not_returned')}
                 </small>
+                {modelErrorKind(event.message, [snapshot.runs.find((run) => run.id === event.runId)?.controller.profile?.provider]) && (
+                  <small>{modelErrorText(event.message, [snapshot.runs.find((run) => run.id === event.runId)?.controller.profile?.provider])}</small>
+                )}
                 <PrivateArcadeReasoning
                   reasoning={event.reasoning}
                   metrics={event.metrics}

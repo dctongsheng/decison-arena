@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "createdAt": "2026-10-17T07:14:37.359Z",
+  "development": [
+    "snake-dev-88b9b91662f8a78d9d7659b0"
+  ],
+  "acceptance": [
+    "snake-accept-42c3abe410c74c38b6daaf19",
+    "snake-accept-c16e9a0a1599e08fe612812b",
+    "snake-accept-92bd56e834122ef19e96327f",
+    "snake-accept-03db29bcfd5693b58821d41d",
+    "snake-accept-fe9494d1c9bf355ef8c047cc",
+    "snake-accept-7bbcb2fa76df8419dd9a5b99",
+    "snake-accept-1661651c5da683baa3338231",
+    "snake-accept-8634956e25f6a79ee8aba699",
+    "snake-accept-b5ea3c2ac4d88b078135907d",
+    "snake-accept-1fac27dd2e8f67185f127832",
+    "snake-accept-509eb6212374c13252e19756",
+    "snake-accept-d29e0989a2f01b529c98f99f",
+    "snake-accept-d423bd4ed40c7d09df75ed91",
+    "snake-accept-e95e1f650fd68f2268e90393",
+    "snake-accept-c6fe7bc1c31984662a9e0195",
+    "snake-accept-1e72a4df82ddcccbf7891bb6",
+    "snake-accept-d202a7a7f2a0a2e1c49b80f8",
+    "snake-accept-8711c7c1eaf8496238621895",
+    "snake-accept-8142ab94ceeb657e600149eb",
+    "snake-accept-51219cc29123c4d9286a6551"
+  ],
+  "repeatSeedIndices": [
+    0,
+    4,
+    8,
+    12,
+    16
+  ]
+}

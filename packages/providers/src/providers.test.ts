@@ -1,6 +1,7 @@
 import {describe,it,expect,vi,afterEach} from 'vitest';
 import {encryptSecret,decryptSecret,validateEndpoint,normalizeResponse,isPublicAddress,decide,ENDPOINTS,MAX_REASONING_CHARACTERS} from './index';
 import type {ModelProfile} from '@decision-arena/core';
+import {BAMBOONODE_INSUFFICIENT_QUOTA} from '@decision-arena/core';
 const req={state:{},instructions:'choose',actions:[{id:'a',label:'A'},{id:'b',label:'B'}]};
 describe('credential isolation',()=>{
  it('fails closed without a master key',async()=>{await expect(encryptSecret('test-key','','a')).rejects.toThrow();});
@@ -105,6 +106,42 @@ describe('BambooNode fixed gateway providers',()=>{
   const transport=vi.fn<typeof fetch>(async()=>new Response('private upstream detail',{status,headers:{location:'https://attacker.example.org/'}}));vi.stubGlobal('fetch',transport);
   await expect(decide(profile('bamboonode-decisions','typesafe/jev-1.13'),'fixture-bamboo-key',req)).rejects.toThrow(`Model provider returned HTTP ${status}`);
   expect(transport).toHaveBeenCalledTimes(1);expect(transport.mock.calls[0][1]?.redirect).toBe('manual');
+ });
+ it.each([
+  {code:'permission_denied',message:'Insufficient user quota, remaining quota: ＄0.000000 private fixture'},
+  {code:'permission_denied',message:'用户额度不足, 剩余额度: ＄0.000000 private fixture'},
+  {code:'insufficient_quota',message:'private fixture'},
+ ])('classifies an explicit BambooNode quota rejection without exposing its body: %j',async error=>{
+  const transport=vi.fn<typeof fetch>(async()=>Response.json({error},{status:403}));vi.stubGlobal('fetch',transport);
+  await expect(decide(profile('bamboonode-decisions','typesafe/jev-1.14'),'fixture-bamboo-key',req)).rejects.toThrow(new Error(BAMBOONODE_INSUFFICIENT_QUOTA));
+  expect(transport).toHaveBeenCalledTimes(1);
+ });
+ it('also classifies insufficient quota for BambooNode StartLux',async()=>{
+  vi.stubGlobal('fetch',vi.fn<typeof fetch>(async()=>Response.json({error:{code:'insufficient_quota'}},{status:402})));
+  await expect(decide(profile('bamboonode-systemone','startlux-decision-27b-autothink'),'fixture-bamboo-key',req)).rejects.toThrow(new Error(BAMBOONODE_INSUFFICIENT_QUOTA));
+ });
+ it.each([
+  {error:{code:'permission_denied',message:'This model is not allowed. private fixture'}},
+  {error:{code:'permission_denied',message:'Invalid credential private fixture'}},
+  {message:'Insufficient user quota, remaining quota: private fixture'},
+  {error:'Insufficient user quota'},
+  {error:null},
+ ])('does not misclassify another 403 error or copy its body: %j',async body=>{
+  vi.stubGlobal('fetch',vi.fn<typeof fetch>(async()=>Response.json(body,{status:403})));
+  await expect(decide(profile('bamboonode-decisions','typesafe/jev-1.13'),'fixture-bamboo-key',req)).rejects.toThrow(new Error('Model provider returned HTTP 403'));
+ });
+ it('bounds untrusted error bodies and cancels an oversized stream',async()=>{
+  const cancel=vi.fn();
+  vi.stubGlobal('fetch',vi.fn<typeof fetch>(async()=>new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(JSON.stringify({error:{code:'insufficient_quota',message:'private fixture'.repeat(2000)}})));},cancel}),{status:403})));
+  await expect(decide(profile('bamboonode-decisions','typesafe/jev-1.13'),'fixture-bamboo-key',req)).rejects.toThrow(new Error('Model provider returned HTTP 403'));
+  expect(cancel).toHaveBeenCalledTimes(1);
+ });
+ it('does not interpret a quota message from a different provider or status',async()=>{
+  for(const [provider,model,status] of [['openrouter','typesafe/jev-1.13',403],['bamboonode-decisions','typesafe/jev-1.13',401]] as const) {
+   const transport=vi.fn<typeof fetch>(async()=>Response.json({error:{code:'insufficient_quota'}},{status}));vi.stubGlobal('fetch',transport);
+   await expect(decide(profile(provider,model),'fixture-key',req)).rejects.toThrow(new Error(`Model provider returned HTTP ${status}`));
+   expect(transport).toHaveBeenCalledTimes(1);
+  }
  });
  it.each(['openrouter','systemone','custom-openrouter','custom-systemone'] as const)('does not send a managed app key through %s even if a stored profile is changed',async provider=>{
   const transport=vi.fn<typeof fetch>();vi.stubGlobal('fetch',transport);

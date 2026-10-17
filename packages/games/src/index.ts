@@ -14,3 +14,5 @@ export { gomokuWinningLine } from './gomoku';
 export { arcadeGames, getArcadeGame, snake, tetris, platformer } from './arcade';
 export type { SnakeState, TetrisState, PlatformerState } from './arcade';
 export { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions } from './arcade/decision';
+export { DEFAULT_SNAKE_HARNESS, SNAKE_HARNESS_PROTOCOL, SNAKE_HARNESS_VERSIONS, SNAKE_BASELINE_INSTRUCTIONS, SNAKE_REALTIME_INSTRUCTIONS, snakeHarnessVersion, snakeHarnessInstructions, snakeHarnessPosition, rememberSnakeObservation } from './arcade/snake-harness';
+export type { SnakePreviousObservation, SnakeVisibleObservation } from './arcade/snake-harness';

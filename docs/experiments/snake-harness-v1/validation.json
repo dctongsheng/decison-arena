@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 2,
+  "date": "2026-10-17",
+  "status": "completed-jev-candidates-rejected",
+  "defaultHarness": "snake-harness-a-v1",
+  "defaultChanged": false,
+  "sourceManifest": {
+    "files": [
+      {
+        "path": "packages/games/src/index.ts",
+        "sha256": "facf8226286a6c4b6192083e9b0f58e802b7754192345cfa67983fac6d480705"
+      },
+      {
+        "path": "packages/games/src/arcade/index.ts",
+        "sha256": "dbdeb9f1ddedbd206a98f616b16e0f282eca4a52ba7d5d16b51e2c48883db3c6"
+      },
+      {
+        "path": "packages/core/src/arcade.ts",
+        "sha256": "c2972442bd4fdfae627a773d5a40fdd1f29d27d08ca182a183b2c797a10e5334"
+      },
+      {
+        "path": "packages/core/src/index.ts",
+        "sha256": "717f9e9166208dbf0cd863c38af79a484f2eabb0d777e3386ca82b661fee74f4"
+      },
+      {
+        "path": "packages/games/src/arcade/common.ts",
+        "sha256": "887e8d7628c59d5ec026bab4bae4cb82525e2b60741d80532299a193e265c1fe"
+      },
+      {
+        "path": "packages/games/src/arcade/snake.ts",
+        "sha256": "224bea22e5812735ac2c660e85260cfca320e4059b0e80f88257b3f6a6f00cae"
+      },
+      {
+        "path": "packages/games/src/arcade/decision.ts",
+        "sha256": "945b683bcff1fc54819eb18f2f5251d09af7f888484a5dbe19831c29be6e9cf5"
+      },
+      {
+        "path": "packages/games/src/arcade/snake-harness.ts",
+        "sha256": "8635a0c5165cfae7c43ebcfb3b856dd8a1ae2ab0cc60f8c77c52eed1e225bb8b"
+      },
+      {
+        "path": "packages/providers/src/index.ts",
+        "sha256": "0274d2a527471c8823cb480013cb51810c70058bc1318c1fbb25ed0d2c8450b8"
+      },
+      {
+        "path": "apps/runner/src/arcade.ts",
+        "sha256": "4e4ba9fc75974a7bbf3d03c9ad11204ac3175648336e4aa0e7fd4c66462ea801"
+      },
+      {
+        "path": "apps/runner/src/arcade-scheduling.ts",
+        "sha256": "e7fd82616096928a61cee8ce68351649f7692638300daca027820ed161ca5b4b"
+      },
+      {
+        "path": "apps/runner/src/index.ts",
+        "sha256": "6eb7ae4557d15fddcae4bec05897fac6a9bacb8f82d58a150aa5833e6c8d6154"
+      },
+      {
+        "path": "apps/web/src/core/arena/validation.ts",
+        "sha256": "50e50954e4819bb85578ad29946fe4dd2b5a90d577e5d22a838aa71e5364857d"
+      },
+      {
+        "path": "apps/web/src/modules/arena/service.ts",
+        "sha256": "1403704d654b15d45d5555682e2da416fcb99bd5452ea909746fd26b0ac6570f"
+      },
+      {
+        "path": "scripts/snake-harness-experiment.mjs",
+        "sha256": "f089703f0e3a5fb3796017c6fec3d74b62067b837cbf65aafd8a7c92502048e4"
+      },
+      {
+        "path": "scripts/snake-harness-experiment-lib.mjs",
+        "sha256": "7c6ae6dcda517ed9d79a805fa7d9cd0bfd5ab9707db348c68507e7faae9ef261"
+      },
+      {
+        "path": "scripts/lib/snake-experiment-report.mjs",
+        "sha256": "0bc914afd0f6107def5f7650b922b1325cbacc92f8406962a27b4662f1a3d942"
+      }
+    ],
+    "sha256": "af32f92856958dd41ea948b5a6b7bde59a14848f5c3e59511491808d3f8e958c"
+  },
+  "plans": {
+    "failedStartLuxPilot": {
+      "experimentId": "426d52b3-6fef-4e83-a678-64f6f0d7f2d5",
+      "planHash": "4ca4355098f29164eed10933042f97d82c261b207fc00c759e95542dfe2fcce1",
+      "status": "halted-http401",
+      "attempts": 1,
+      "eligibleSessions": 0
+    },
+    "jevPilot": {
+      "experimentId": "fdbf1ff3-aab6-4093-a621-751503eb85e1",
+      "planHash": "5649dc0b6768f16189cf299acddf6ef8b6fca76dc369d7a42ccffb57338c91fe",
+      "maxRequests": 900,
+      "knownCalls": 28,
+      "completed": 3
+    },
+    "jevFormal": {
+      "experimentId": "ee8664c7-7e98-4573-b2e5-cdd424ab7812",
+      "planHash": "28383681077b56c46e5d9e0f6a2d05c47689d30d75e312c7a41edf7a18fc4541",
+      "maxRequests": 4000,
+      "knownCalls": 995,
+      "completed": 75,
+      "halted": false
+    }
+  },
+  "budget": {
+    "initialPilotMaxRequests": 1800,
+    "jevPilotMaxRequests": 900,
+    "failedStartLuxAttempts": 1,
+    "jevPilotRequests": 28,
+    "formalMaxRequests": 4000,
+    "formalRequests": 995,
+    "totalAttempts": 1024
+  },
+  "runtimeRules": {
+    "rulesVersion": "snake-realtime-v2",
+    "board": [
+      20,
+      20
+    ],
+    "movesPerSecond": 3,
+    "tickRate": 60,
+    "maxTicks": 7200,
+    "maxCallsPerRun": 300,
+    "minRequestIntervalMs": 500,
+    "inputDurationMs": 100
+  },
+  "model": {
+    "provider": "openrouter",
+    "requested": "typesafe/jev-1.13",
+    "actual": [
+      "typesafe/jev-1.13-20260917"
+    ],
+    "thinkModeRequested": "never",
+    "thoughtUsed": {
+      "true": 0,
+      "false": 0,
+      "unreported": 995
+    }
+  },
+  "independent": {
+    "seeds": 20,
+    "sessions": 60,
+    "meanFood": {
+      "A": 0.8,
+      "B": 0.45,
+      "C": 0.25
+    },
+    "comparisons": [
+      {
+        "candidate": "B",
+        "pairedMeanFoodDifference": -0.35,
+        "confidenceLevel": 0.975,
+        "confidenceInterval": [
+          -0.8,
+          0.05
+        ],
+        "originalRule": {
+          "controlWins": 12,
+          "candidateWins": 6,
+          "ties": 2,
+          "unresolved": 0,
+          "netWins": -6
+        },
+        "gate": {
+          "passed": false,
+          "criteria": {
+            "twentyCompleteIndependentSeeds": true,
+            "fiveCompleteRepeatedSeeds": true,
+            "allFormalReplaysValidWithoutErrors": true,
+            "meanFoodImprovementAtLeastHalf": false,
+            "confidenceLowerBoundAboveZero": false,
+            "originalRuleNetWinsNonnegative": false,
+            "repeatedMeanFoodDifferenceNonnegative": true
+          },
+          "defaultChanged": false
+        }
+      },
+      {
+        "candidate": "C",
+        "pairedMeanFoodDifference": -0.55,
+        "confidenceLevel": 0.975,
+        "confidenceInterval": [
+          -1,
+          -0.1
+        ],
+        "originalRule": {
+          "controlWins": 16,
+          "candidateWins": 4,
+          "ties": 0,
+          "unresolved": 0,
+          "netWins": -12
+        },
+        "gate": {
+          "passed": false,
+          "criteria": {
+            "twentyCompleteIndependentSeeds": true,
+            "fiveCompleteRepeatedSeeds": true,
+            "allFormalReplaysValidWithoutErrors": true,
+            "meanFoodImprovementAtLeastHalf": false,
+            "confidenceLowerBoundAboveZero": false,
+            "originalRuleNetWinsNonnegative": false,
+            "repeatedMeanFoodDifferenceNonnegative": false
+          },
+          "defaultChanged": false
+        }
+      }
+    ]
+  },
+  "repeats": {
+    "seeds": 5,
+    "sessions": 15,
+    "meanFood": {
+      "A": 0.6,
+      "B": 1,
+      "C": 0.4
+    },
+    "independentSampleCountContribution": 0,
+    "comparisons": [
+      {
+        "candidate": "B",
+        "pairedMeanFoodDifference": 0.4
+      },
+      {
+        "candidate": "C",
+        "pairedMeanFoodDifference": -0.2
+      }
+    ]
+  },
+  "checks": {
+    "formalSessionsValid": 75,
+    "requestsRecorded": 995,
+    "applied": 921,
+    "dropped": 74,
+    "failed": 0,
+    "unknown": 0,
+    "pnpmTestPassed": 442,
+    "pnpmTestRunnerPassed": 102,
+    "offlineDriverRendererTestsPassed": 26,
+    "typecheck": "passed",
+    "build": "passed",
+    "buildCloudflare": "passed",
+    "frozenSourceManifest": "17 files verified unchanged after all real calls",
+    "productionDeployment": false,
+    "communityPublished": false,
+    "formalReplayFramesVerified": 2001,
+    "acceptedActionMappingsVerified": 921,
+    "secretPatternScan": "0 hits in delivered reports"
+  },
+  "evidenceFiles": [
+    "README.md",
+    "results.md",
+    "results.json",
+    "results.events.json",
+    "trace-audit.md",
+    "acceptance-trace.md",
+    "preregistration.md",
+    "auth-amendment.md",
+    "formal-budget.md",
+    "seeds.json",
+    "design.md"
+  ],
+  "scope": "Real Jev realtime evidence only. StartLux HTTP401 attempt is excluded from scores, not zero food. No candidate passed; A remains default. Holdout results were not used to modify these candidates."
+}

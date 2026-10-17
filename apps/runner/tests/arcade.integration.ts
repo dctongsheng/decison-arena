@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { resolve } from 'node:path';
 import { Miniflare, Log, LogLevel, Response as MockResponse, type MiniflareOptions } from 'miniflare';
-import type { ArcadeReplayV2, ArcadeSession, ModelProfile, SeatConfig } from '@decision-arena/core';
-import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame } from '@decision-arena/games';
+import type { ArcadeConfig, ArcadeReplayV2, ArcadeSession, ModelProfile, SeatConfig, SnakeHarnessVersion } from '@decision-arena/core';
+import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame, SNAKE_BASELINE_INSTRUCTIONS, SNAKE_REALTIME_INSTRUCTIONS, SNAKE_HARNESS_PROTOCOL } from '@decision-arena/games';
 import { encryptSecret, ENDPOINTS } from '@decision-arena/providers';
 import { canObserveAfterInput, canSendObservedDecision } from '../src/arcade-scheduling';
 
@@ -33,8 +33,8 @@ async function request(path: string, body?: unknown, account = owner) {
 }
 async function snapshot(id: string): Promise<ArcadeSession> { const response = await request(`/arcade-sessions/${id}`); expect(response.status).toBe(200); return response.json() as Promise<ArcadeSession>; }
 async function command(id: string, type: string, operationId = crypto.randomUUID()) { return request(`/arcade-sessions/${id}/commands`, { type, operationId }); }
-async function create(controllers: SeatConfig[], gameId = 'tetris', mode = controllers.length === 1 ? controllers[0].kind === 'ai' ? 'ai-solo' : 'practice' : controllers.some(controller => controller.kind === 'human') ? 'human-ai' : 'ai-ai') {
-  const response = await request('/arcade-sessions', { gameId, mode, config: {}, controllers, seed: 'arcade-fixture-shared-seed' });
+async function create(controllers: SeatConfig[], gameId = 'tetris', mode = controllers.length === 1 ? controllers[0].kind === 'ai' ? 'ai-solo' : 'practice' : controllers.some(controller => controller.kind === 'human') ? 'human-ai' : 'ai-ai', config: ArcadeConfig = {}) {
+  const response = await request('/arcade-sessions', { gameId, mode, config, controllers, seed: 'arcade-fixture-shared-seed' });
   expect(response.status).toBe(201);
   const session = await response.json() as ArcadeSession; sessions.push(session.id); return session;
 }
@@ -62,7 +62,7 @@ async function claim(connection: Awaited<ReturnType<typeof socket>>, runId: stri
   await until(() => connection.messages.slice(before).some(message => message.type === 'controller'), 'controller claim');
   return connection.messages.filter(message => message.type === 'controller').at(-1).controllerSession as string;
 }
-async function patch(id: string, update: (record: any) => void) {
+async function patch(id: string, update: (record: any, sqlite: DatabaseSync) => void) {
   await mf.dispose();
   const directories = [resolve(persistence, 'do')]; let found = false;
   while (directories.length) {
@@ -77,7 +77,7 @@ async function patch(id: string, update: (record: any) => void) {
         const row = sqlite.prepare('SELECT value FROM arcade_meta WHERE id=1').get() as { value: string } | undefined;
         if (!row) continue;
         const record = JSON.parse(row.value); if (record.id !== id) continue;
-        update(record); sqlite.prepare('UPDATE arcade_meta SET value=? WHERE id=1').run(JSON.stringify(record)); found = true;
+        update(record, sqlite); sqlite.prepare('UPDATE arcade_meta SET value=? WHERE id=1').run(JSON.stringify(record)); found = true;
       } finally { sqlite.close(); }
     }
   }
@@ -178,6 +178,167 @@ describe('real-time ArcadeSessionObject in workerd (fixture providers only)', ()
       expect((await snapshot(session.id)).runs[0].lastDecision?.outcome).toBe('failed'); expect(calls).toHaveLength(0);
       await command(session.id, 'end');
     }
+  });
+
+  it('freezes default Snake A and explicit B and changes only instructions in actual SystemOne requests', async () => {
+    const source: ModelProfile = { ...await profile(), provider: 'systemone', endpoint: ENDPOINTS.systemone, thinkMode: 'always', thinkBudget: 1024 };
+    const original = structuredClone(source), payloads: any[] = [];
+    for (const version of ['snake-harness-a-v1', 'snake-harness-b-v1'] as const) {
+      const blocker = gate(); reply = async body => { await blocker.promise; return success(body, '向上'); };
+      // Omitted A exercises the server default rather than supplying the answer in the request.
+      const session = await create([{ kind: 'ai', profile: source }], 'snake', 'ai-solo', version === 'snake-harness-a-v1' ? {} : { snakeHarnessVersion: version });
+      expect(session.config.snakeHarnessVersion).toBe(version);
+      const count = calls.length;
+      expect((await request(`/arcade-sessions/${session.id}/commands`, { type: 'start', operationId: crypto.randomUUID(), config: { snakeHarnessVersion: 'snake-harness-c-v1' } })).status).toBe(200);
+      await until(() => calls.length === count + 1, `${version} outbound payload`);
+      const body = structuredClone(calls[count]); payloads.push(body);
+      expect(body).toMatchObject({ think_mode: 'never', return_thought: false, think_budget: 1024 });
+      expect(body.state.promptVersion).toBe(SNAKE_HARNESS_PROTOCOL);
+      expect(body.state.position.head).toEqual({ x: 4, y: 10 });
+      expect(body.state.position.tick).toBeLessThan(20);
+      expect(body.state.runtime.lastResponseMs).toBeNull();
+      const initial = getArcadeGame('snake').create({}, session.seed);
+      expect(body.questions.primary_move.criteria).toEqual(Object.fromEntries(getArcadeGame('snake').candidates(initial).map((action, index) => [`m${index}`, action.label])));
+      await command(session.id, 'end'); blocker.release();
+      await until(async () => !(await snapshot(session.id)).runs[0].inflight, 'frozen harness request settles');
+      const replay = await (await request(`/arcade-sessions/${session.id}/replay`)).json() as ArcadeReplayV2;
+      expect(replay.config.snakeHarnessVersion).toBe(version);
+      expect(replay.events.find(event => event.type === 'decision')).toMatchObject({ snakeHarnessVersion: version, outcome: 'dropped', promptVersion: SNAKE_HARNESS_PROTOCOL });
+      expect((await snapshot(session.id)).config.snakeHarnessVersion).toBe(version);
+    }
+    expect(source).toEqual(original);
+    expect(payloads[0].questions.primary_move.instructions).toBe(SNAKE_BASELINE_INSTRUCTIONS);
+    expect(payloads[0].questions.primary_move.instructions).toBe(arcadeDecisionInstructions('snake'));
+    expect(payloads[1].questions.primary_move.instructions).toBe(SNAKE_REALTIME_INSTRUCTIONS);
+    expect(payloads[1].questions.primary_move.instructions).not.toBe(payloads[0].questions.primary_move.instructions);
+    function withoutInstructionsAndClock(body: any) {
+      const copy = structuredClone(body), position = copy.state.position;
+      delete copy.questions.primary_move.instructions;
+      delete copy.state.observedTick;
+      for (const field of ['tick', 'ticksRemaining', 'secondsRemaining', 'nextMoveInTicks']) delete position[field];
+      delete position.score.survivedTicks;
+      return copy;
+    }
+    expect(withoutInstructionsAndClock(payloads[1])).toEqual(withoutInstructionsAndClock(payloads[0]));
+  });
+
+  it('sends C geometry and real previous-observation deltas without internal state or altered candidates', async () => {
+    const first = gate(), second = gate();
+    reply = async (body, index) => { await (index === 0 ? first.promise : second.promise); return success(body, '向上'); };
+    const own: ModelProfile = { ...await profile(), provider: 'systemone', endpoint: ENDPOINTS.systemone, thinkMode: 'auto' };
+    const session = await create([{ kind: 'ai', profile: own }], 'snake', 'ai-solo', { snakeHarnessVersion: 'snake-harness-c-v1' });
+    await patch(session.id, record => { record.runs[0].state.internalOnly = 'fixture-private-engine-state'; });
+    await command(session.id, 'start'); await until(() => calls.length === 1, 'first C observation');
+    const before = calls[0].state.position;
+    expect(calls[0]).toMatchObject({ think_mode: 'never', return_thought: false });
+    expect(calls[0].questions.primary_move.instructions).toBe(SNAKE_REALTIME_INSTRUCTIONS);
+    expect(before).toMatchObject({ coordinates: { width: 20, height: 20, origin: 'top-left', x: 'right', y: 'down' }, direction: 'right', queued: null, nextScheduledDirection: 'right', movementEveryTicks: 20, movesPerSecond: 3, sincePreviousObservation: null });
+    expect(before.clock.tick).toBe(calls[0].state.observedTick);
+    expect(before.head).toEqual({ x: 4, y: 10 }); expect(before.body).toEqual([{ x: 4, y: 10 }, { x: 3, y: 10 }, { x: 2, y: 10 }]);
+    expect(before.foodOffset).toEqual({ dx: before.food.x - 4, dy: before.food.y - 10 });
+    expect(before.geometry.map((entry: any) => ({ actionId: entry.actionId, adjacent: entry.adjacent, outside: entry.outside, bodyIndex: entry.bodyIndex, wallDistance: entry.wallDistance }))).toEqual([
+      { actionId: 'up:100', adjacent: { x: 4, y: 9 }, outside: false, bodyIndex: -1, wallDistance: 10 },
+      { actionId: 'right:100', adjacent: { x: 5, y: 10 }, outside: false, bodyIndex: -1, wallDistance: 15 },
+      { actionId: 'down:100', adjacent: { x: 4, y: 11 }, outside: false, bodyIndex: -1, wallDistance: 9 },
+    ]);
+    for (const entry of before.geometry) expect(Object.keys(entry).sort()).toEqual(['actionId', 'adjacent', 'bodyIndex', 'direction', 'isFoodCell', 'isTailCell', 'outside', 'wallDistance'].sort());
+    expect(before.geometry.every((entry: any) => entry.isTailCell === false)).toBe(true);
+    expect(before.geometry.map((entry: any) => entry.isFoodCell)).toEqual(before.geometry.map((entry: any) => entry.adjacent.x === before.food.x && entry.adjacent.y === before.food.y));
+    for (const forbidden of ['rng', 'internalOnly', 'fixture-private-engine-state', 'credentialId', 'fixture-model-secret', 'ownerId']) expect(JSON.stringify(calls[0])).not.toContain(forbidden);
+    await until(async () => (await snapshot(session.id)).tick >= 25, 'physics advances during C request');
+    first.release(); await until(() => calls.length === 2, 'second C observation');
+    const current = await snapshot(session.id), after = calls[1].state.position;
+    const accepted = current.events.find(event => event.type === 'decision' && event.outcome === 'applied')!;
+    expect(accepted).toMatchObject({ snakeHarnessVersion: 'snake-harness-c-v1', actionId: 'up:100' });
+    expect(after.clock.tick).toBeGreaterThanOrEqual(accepted.appliedTick!);
+    expect(after.sincePreviousObservation).toMatchObject({ observedTick: before.clock.tick, previousHead: before.head, previousDirection: before.direction, previousQueued: before.queued, selectedAction: 'up:100', outcome: 'applied', appliedTick: accepted.appliedTick });
+    expect(after.sincePreviousObservation.elapsedTicks).toBe(after.clock.tick - before.clock.tick);
+    expect(after.sincePreviousObservation.movementTicksElapsed).toBe(Math.floor(after.clock.tick / 20) - Math.floor(before.clock.tick / 20));
+    expect(after.sincePreviousObservation.headDisplacement).toEqual({ dx: after.head.x - before.head.x, dy: after.head.y - before.head.y });
+    expect(after.sincePreviousObservation.foodEaten).toBe(after.score.food - before.score.food);
+    expect(after.sincePreviousObservation.foodPositionChanged).toBe(JSON.stringify(after.food) !== JSON.stringify(before.food));
+    const adapter = getArcadeGame('snake');
+    const sentInput = current.events.find(event => event.type === 'input' && event.requestId === accepted.requestId)!;
+    let state = adapter.step(adapter.create({}, session.seed), sentInput.tick);
+    state = adapter.input(state, sentInput.input!); state = adapter.step(state, after.clock.tick - sentInput.tick);
+    expect(after.head).toEqual(adapter.view(state).snake![0]);
+    const originalCandidates = adapter.candidates(state);
+    expect(after.geometry.map((entry: any) => entry.actionId)).toEqual(originalCandidates.map(action => action.id));
+    expect(calls[1].questions.primary_move.criteria).toEqual(Object.fromEntries(originalCandidates.map((action, index) => [`m${index}`, action.label])));
+    expect(calls[1]).toMatchObject({ think_mode: 'never', return_thought: false });
+    await command(session.id, 'end'); second.release();
+  });
+
+  it('rejects unknown Snake harness versions and harness configuration on other games', async () => {
+    const own = await profile();
+    for (const [gameId, version] of [['snake', 'snake-harness-d-v1'], ['snake', ''], ['snake', null], ['snake', 7], ['tetris', 'snake-harness-a-v1'], ['platformer', 'snake-harness-c-v1']]) {
+      const response = await request('/arcade-sessions', { gameId, mode: 'ai-solo', controllers: [{ kind: 'ai', profile: own }], config: { snakeHarnessVersion: version } });
+      expect(response.status).toBe(400);
+      expect((await response.json() as any).error).toMatch(gameId === 'snake' ? /Unknown snake harness version/ : /only available for snake/);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each(['snake-harness-b-v1', 'snake-harness-c-v1'] as SnakeHarnessVersion[])('keeps %s frozen through pause, runtime recovery, unknown billing and explicit retry', async version => {
+    const first = gate(), second = gate();
+    reply = async (body, index) => { await (index === 0 ? first.promise : second.promise); return success(body, '向上'); };
+    const own = await profile(), session = await create([{ kind: 'ai', profile: own }], 'snake', 'ai-solo', { snakeHarnessVersion: version });
+    await command(session.id, 'start'); await until(() => calls.length === 1, 'initial frozen harness request');
+    await command(session.id, 'pause'); first.release();
+    await until(async () => !(await snapshot(session.id)).runs[0].inflight, 'paused request settles');
+    const paused = await snapshot(session.id);
+    expect(paused.config.snakeHarnessVersion).toBe(version);
+    const originalEvents = structuredClone(paused.events);
+    await patch(session.id, record => {
+      record.status = 'running'; record.anchorWall = Date.now() - 1000; record.lastBatchWall = record.anchorWall;
+      record.runs[0].calls++; record.runs[0].lastRequestedAt = 0;
+      record.runs[0].inflight = { requestId: 'fixture-harness-unknown', generation: record.generation, observedTick: record.tick, startedAt: Date.now() - 1000, promptVersion: SNAKE_HARNESS_PROTOCOL, snakeHarnessVersion: version };
+    });
+    const recovered = await snapshot(session.id);
+    expect(recovered).toMatchObject({ status: 'paused', needsRetry: true, config: { snakeHarnessVersion: version } });
+    expect(recovered.events.slice(0, originalEvents.length)).toEqual(originalEvents);
+    expect(recovered.events.find(event => event.requestId === 'fixture-harness-unknown')).toMatchObject({ outcome: 'unknown', snakeHarnessVersion: version, promptVersion: SNAKE_HARNESS_PROTOCOL });
+    expect(calls).toHaveLength(1);
+    expect((await command(session.id, 'resume')).status).toBe(400);
+    expect((await command(session.id, 'retry')).status).toBe(200);
+    await until(() => calls.length === 2, 'explicit frozen harness retry');
+    expect(calls[1].questions.primary_move.instructions).toBe(SNAKE_REALTIME_INSTRUCTIONS);
+    expect(calls[1].state.position).toHaveProperty(version === 'snake-harness-c-v1' ? 'geometry' : 'board');
+    await command(session.id, 'end'); second.release();
+    await until(async () => !(await snapshot(session.id)).runs[0].inflight, 'retry ends');
+    const replay = await (await request(`/arcade-sessions/${session.id}/replay`)).json() as ArcadeReplayV2;
+    expect(replay.config.snakeHarnessVersion).toBe(version);
+    expect(replay.events.filter(event => event.type === 'decision').every(event => event.snakeHarnessVersion === version)).toBe(true);
+    expect(replay.events.slice(0, originalEvents.length)).toEqual(originalEvents);
+  });
+
+  it('leaves legacy Snake replay configuration and prior events unlabelled while new requests use A explicitly', async () => {
+    const blocker = gate(); reply = async body => { await blocker.promise; return success(body, '向上'); };
+    const own = await profile(), session = await create([{ kind: 'ai', profile: own }], 'snake');
+    const legacyPrompt = 'decision-arena-arcade-v3'; let legacyEvent: any;
+    await patch(session.id, (record, sqlite) => {
+      delete record.input.config.snakeHarnessVersion; record.promptVersion = legacyPrompt;
+      legacyEvent = { seq: ++record.eventSeq, type: 'decision', tick: 0, at: 1, runId: 'run-0', requestId: 'fixture-legacy-completed', observedTick: 0, actionId: 'right:100', outcome: 'dropped', promptVersion: legacyPrompt };
+      sqlite.prepare('INSERT INTO arcade_events(seq,value) VALUES(?,?)').run(legacyEvent.seq, JSON.stringify(legacyEvent));
+      record.status = 'running'; record.anchorWall = Date.now() - 1000; record.lastBatchWall = record.anchorWall;
+      record.runs[0].inflight = { requestId: 'fixture-legacy-unknown', generation: record.generation, observedTick: 0, startedAt: Date.now() - 1000, promptVersion: legacyPrompt };
+    });
+    const recovered = await snapshot(session.id);
+    expect(recovered.config.snakeHarnessVersion).toBeUndefined();
+    expect(recovered.events.find(event => event.requestId === legacyEvent.requestId)).toEqual(legacyEvent);
+    const oldUnknown = recovered.events.find(event => event.requestId === 'fixture-legacy-unknown')!;
+    expect(oldUnknown).toMatchObject({ outcome: 'unknown', promptVersion: legacyPrompt });
+    expect(oldUnknown.snakeHarnessVersion).toBeUndefined(); expect(calls).toHaveLength(0);
+    await command(session.id, 'retry'); await until(() => calls.length === 1, 'legacy session explicitly retries baseline');
+    expect(calls[0].questions.primary_move.instructions).toBe(SNAKE_BASELINE_INSTRUCTIONS);
+    expect(calls[0].state.position).toHaveProperty('board'); expect(calls[0].state.position).not.toHaveProperty('geometry');
+    await command(session.id, 'end'); blocker.release();
+    await until(async () => !(await snapshot(session.id)).runs[0].inflight, 'legacy current response settles');
+    const replay = await (await request(`/arcade-sessions/${session.id}/replay`)).json() as ArcadeReplayV2;
+    expect(replay.promptVersion).toBe(legacyPrompt); expect(replay.config.snakeHarnessVersion).toBeUndefined();
+    expect(replay.events.find(event => event.requestId === legacyEvent.requestId)).toEqual(legacyEvent);
+    expect(replay.events.find(event => event.requestId === 'fixture-legacy-unknown')).toEqual(oldUnknown);
+    expect(replay.events.filter(event => event.type === 'decision' && !event.requestId?.startsWith('fixture-legacy-')).every(event => event.snakeHarnessVersion === 'snake-harness-a-v1')).toBe(true);
   });
 
   it('simulates new Snake sessions at three cells per second and sends the same speed to the model', async () => {

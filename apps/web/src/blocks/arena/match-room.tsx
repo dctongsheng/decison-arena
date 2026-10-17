@@ -294,7 +294,10 @@ function MatchRoomContent({ id }: { id: string }) {
           </Button>
         </div>
       )}
-      <ErrorNotice error={query.error || command.error || snapshot.error} />
+      <ErrorNotice
+        error={query.error || command.error || snapshot.error}
+        providers={seats.map((seat) => seat.profile?.provider)}
+      />
       <div className="arena-room-layout">
         <div className="arena-room-main">
           <div className="arena-players">
@@ -646,7 +649,10 @@ function MatchRoomContent({ id }: { id: string }) {
                         {event.seq.toString().padStart(2, '0')}
                       </span>
                       <div>
-                        <strong>{eventLabel(event)}</strong>
+                        <strong>{eventLabel(event, event.seat === undefined
+                          ? seats.map((seat) => seat.profile?.provider)
+                          : [seats[event.seat].profile?.provider]
+                        )}</strong>
                         <span>
                           {event.seat === undefined
                             ? ''

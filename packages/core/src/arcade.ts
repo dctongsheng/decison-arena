@@ -1,6 +1,7 @@
 import type { Action, DecisionMetrics, DecisionReasoning, PublicSeatConfig, SeatConfig } from './index';
 
 export type ArcadeGameId = 'snake' | 'tetris' | 'platformer';
+export type SnakeHarnessVersion = 'snake-harness-a-v1' | 'snake-harness-b-v1' | 'snake-harness-c-v1';
 export type ArcadeMode = 'practice' | 'ai-solo' | 'human-ai' | 'ai-ai';
 export type ArcadeButton = 'up' | 'down' | 'left' | 'right' | 'rotate-cw' | 'rotate-ccw' | 'soft-drop' | 'hard-drop' | 'hold' | 'jump';
 export interface ArcadeInput { buttons: ArcadeButton[]; durationMs?: number }
@@ -36,7 +37,11 @@ export interface ArcadeAdapter {
   /** Positive means left wins; zero is a tie. */
   compare(left: ArcadeScore, right: ArcadeScore): number;
 }
-export interface ArcadeConfig { level?: 1 | 2 | 3 }
+export interface ArcadeConfig {
+  level?: 1 | 2 | 3;
+  /** Snake-only, frozen when creating the session. Missing historical values mean A v1. */
+  snakeHarnessVersion?: SnakeHarnessVersion;
+}
 export interface CreateArcadeInput {
   gameId: ArcadeGameId; mode: ArcadeMode; config: ArcadeConfig; seed?: string;
   controllers: SeatConfig[];
@@ -49,6 +54,8 @@ export interface ArcadeEvent {
   requestId?: string; outcome?: 'applied' | 'dropped' | 'failed' | 'unknown'; message?: string;
   /** Model-facing protocol version for this request; absent in older recordings. */
   promptVersion?: string;
+  /** Request metadata for new snake events; never backfilled into old recordings. */
+  snakeHarnessVersion?: SnakeHarnessVersion;
   metrics?: DecisionMetrics; reasoning?: DecisionReasoning;
 }
 export interface ArcadeRunSnapshot {
