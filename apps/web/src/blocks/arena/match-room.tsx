@@ -39,10 +39,12 @@ import { useSession } from '@/core/auth/client';
 import { Link, useRouter } from '@/core/i18n/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { Board } from '@/components/arena/board';
+import { WatchViewSelector } from '@/components/arena/watch-view-selector';
 import { TextField } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 
 import { PrivateDecisionReasoning } from './decision-reasoning';
+import { connectMatchStream, mergeMatchSnapshot } from './match-sync';
 import { ReplayPlayer } from './replay-player';
 import {
   ArenaShell,
@@ -63,7 +65,7 @@ export function MatchRoomPage({ id }: { id: string }) {
   return (
     <ArenaShell>
       <AuthGate>
-        <MatchRoomContent id={id} />
+        <MatchRoomContent key={id} id={id} />
       </AuthGate>
     </ArenaShell>
   );
@@ -86,6 +88,10 @@ function MatchRoomContent({ id }: { id: string }) {
       apiGet<MatchSnapshot>(
         `/api/arena/matches/${encodeURIComponent(id)}?seat=${viewer}`
       ),
+    // Applies at cache commit time, including an HTTP response that raced a push.
+    structuralSharing: (previous, incoming) => mergeMatchSnapshot(
+      previous as MatchSnapshot | undefined, incoming as MatchSnapshot
+    ),
     refetchInterval: (query) =>
       query.state.data?.status === 'finished'
         ? false
@@ -105,6 +111,8 @@ function MatchRoomContent({ id }: { id: string }) {
       if (humans.length) {
         setViewer(humans[0]);
         if (snapshot.gameId === 'army' && humans.length === 2) setCurtain(true);
+      } else if (snapshot.gameId === 'army') {
+        setViewer('full');
       }
       return;
     }
@@ -119,33 +127,22 @@ function MatchRoomContent({ id }: { id: string }) {
     }
   }, [snapshot, viewer]);
   useEffect(() => {
-    if (!initialized.current) return;
-    let live = true;
+    if (!ownerId || !snapshot) return;
     const url = new URL(
       `/api/arena/matches/${encodeURIComponent(id)}/socket`,
       window.location.origin
     );
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     url.searchParams.set('seat', String(viewer));
-    const socket = new WebSocket(url);
-    socket.onopen = () => live && setConnected(true);
-    socket.onclose = () => live && setConnected(false);
-    socket.onerror = () => live && setConnected(false);
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.type === 'snapshot' && message.snapshot?.id === id)
-          client.setQueryData(
-            ['arena-match', ownerId, id, viewer],
-            message.snapshot
-          );
-      } catch {
-        /* Polling remains available if a deployment does not provide WebSockets. */
-      }
-    };
+    const disconnect = connectMatchStream({
+      url: url.toString(), matchId: id, onConnection: setConnected,
+      onSnapshot: (incoming) => client.setQueryData<MatchSnapshot>(
+        ['arena-match', ownerId, id, viewer],
+        (previous) => mergeMatchSnapshot(previous, incoming)
+      ),
+    });
     return () => {
-      live = false;
-      socket.close();
+      disconnect();
       setConnected(false);
     };
   }, [id, ownerId, viewer, client, !!snapshot]);
@@ -182,6 +179,7 @@ function MatchRoomContent({ id }: { id: string }) {
     );
   const { view, seats } = snapshot;
   const allHuman = seats.every((s) => s.kind === 'human');
+  const armyDuelWatch = snapshot.gameId === 'army' && seats.every((s) => s.kind === 'ai');
   const finished = snapshot.status === 'finished';
   const currentHuman =
     viewer !== 'spectator' &&
@@ -345,6 +343,14 @@ function MatchRoomContent({ id }: { id: string }) {
                 {t('room.ply')} {view.ply}
               </span>
             </div>
+            {armyDuelWatch && !showReplay && (
+              <WatchViewSelector
+                value={typeof viewer === 'number' ? viewer : 'full'}
+                onChange={(next) => { setViewer(next); setSelected(null); }}
+                labels={{ title: t('room.watch_view'), full: t('room.watch_full'),
+                  seat0: t('room.watch_blue'), seat1: t('room.watch_red'), help: t('room.watch_help') }}
+              />
+            )}
             {showReplay && finished ? (
               <>
                 <ErrorNotice error={replay.error} />

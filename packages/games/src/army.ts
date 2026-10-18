@@ -200,8 +200,8 @@ function apply(input: GameState, seat: Seat, actionId: string): ArmyState {
   return next;
 }
 
-function projectPiece(state: ArmyState, piece: ArmyPiece, viewer: Viewer): Piece {
-  const full = viewer === 'full' || state.phase === 'finished';
+function projectPiece(state: ArmyState, piece: ArmyPiece, viewer: Viewer, revealFinished = true): Piece {
+  const full = viewer === 'full' || (revealFinished && state.phase === 'finished');
   const knowledge = state.intel[typeof viewer === 'number' ? viewer : other(piece.seat)][piece.id];
   if (full || viewer === piece.seat) return { id: piece.id, seat: piece.seat, kind: piece.kind, label: names[piece.kind] };
   if (knowledge?.exact) return { id: piece.id, seat: piece.seat, kind: knowledge.exact, label: names[knowledge.exact] };
@@ -209,14 +209,21 @@ function projectPiece(state: ArmyState, piece: ArmyPiece, viewer: Viewer): Piece
   return { id: piece.id, seat: piece.seat, kind: 'unknown', label, hidden: true };
 }
 
-function view(input: GameState, viewer: Viewer): GameView {
+function view(input: GameState, viewer: Viewer, revealFinished = true): GameView {
   const state = input as ArmyState;
   return {
-    gameId: 'army', rows: 12, cols: 5, cells: state.board.map(piece => piece ? projectPiece(state, piece, viewer) : null),
+    gameId: 'army', rows: 12, cols: 5, cells: state.board.map(piece => piece ? projectPiece(state, piece, viewer, revealFinished) : null),
     turn: state.turn, phase: state.phase, ply: state.ply, ready: [...state.ready],
     legalActions: typeof viewer === 'number' ? legalActions(state, viewer) : [],
     ...(state.result ? { result: { ...state.result } } : {}),
   };
+}
+
+/** Owner-authorized AI duel watch views; no controls, even for a numbered seat.
+ * Preserve that side's knowledge after the game ends without changing replay
+ * or model observation semantics. Authorization belongs to the runner. */
+export function armyWatchView(input: GameState, viewer: Viewer): GameView {
+  return { ...view(input, viewer, false), legalActions: [] };
 }
 
 function restore(input: unknown): ArmyState {

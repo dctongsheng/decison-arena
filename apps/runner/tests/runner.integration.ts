@@ -41,12 +41,12 @@ async function request(path: string, body?: unknown, account = owner) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
-async function snapshot(id: string, seat?: number): Promise<MatchSnapshot> {
+async function snapshot(id: string, seat?: number | 'full'): Promise<MatchSnapshot> {
   const response = await request(`/matches/${id}${seat === undefined ? '' : `?seat=${seat}`}`);
   expect(response.status).toBe(200);
   return response.json() as Promise<MatchSnapshot>;
 }
-async function command(id: string, value: Record<string, unknown>, seat?: number) {
+async function command(id: string, value: Record<string, unknown>, seat?: number | 'full') {
   return request(`/matches/${id}/commands${seat === undefined ? '' : `?seat=${seat}`}`, { operationId: crypto.randomUUID(), ...value });
 }
 async function create(gameId: CreateMatchInput['gameId'], seats: [SeatConfig, SeatConfig] = [{ kind: 'human' }, { kind: 'human' }]): Promise<MatchSnapshot> {
@@ -336,8 +336,7 @@ describe('actual workerd runner integration (fixture providers only)', () => {
     expect(publicView.view.cells.filter(Boolean).every(p => p?.hidden)).toBe(true);
     expect((await request(`/matches/${match.id}?seat=1`)).status).toBe(400);
     const fullQuery = await request(`/matches/${match.id}?seat=full`);
-    const queryBody = await fullQuery.json() as MatchSnapshot;
-    expect(queryBody.view.cells.filter(Boolean).every(p => p?.hidden)).toBe(true);
+    expect(fullQuery.status).toBe(400);
     expect(JSON.stringify(player)).not.toContain('private-fixture-layout');
     expect((await request(`/matches/${match.id}/replay`)).status).toBe(400);
     expect((await command(match.id, { type: 'action', seat: 0, actionId: 'ready', version: player.version }, 0)).status).toBe(200);
@@ -386,6 +385,77 @@ describe('actual workerd runner integration (fixture providers only)', () => {
     expect(await privateArtifact!.text()).toContain(privateReasoning);
     const summary = await db.prepare('SELECT summary_json FROM arena_matches WHERE id=?').bind(match.id).first<{ summary_json: string }>();
     expect(summary?.summary_json).not.toContain(privateReasoning);
+  });
+
+  it('lets only the owner watch full/side AI duel views over HTTP and WebSocket without revealing opponents to models', async () => {
+    const ai = await profile();
+    ai.thinkMode = 'always';
+    reply = async body => {
+      const occupied = new Set(body.state.position.pieces.map((p: any) => p.coordinate));
+      const quiet = Object.entries(body.questions.primary_move.criteria).find(([, label]) => !occupied.has(String(label).split('→')[1]));
+      return success(body, quiet![0], privateReasoning);
+    };
+    const match = await create('army', [{ kind: 'ai', profile: ai }, { kind: 'ai', profile: ai }]);
+    expect((await request(`/matches/${match.id}?seat=full`, undefined, stranger)).status).toBe(404);
+    const foreignSocket = await mf.dispatchFetch(`https://arena.test/matches/${match.id}/socket?seat=full`, {
+      headers: { 'X-Arena-Owner': stranger, 'X-Arena-Internal': internal, Upgrade: 'websocket' },
+    });
+    expect(foreignSocket.status).toBe(404);
+    const streams: { socket: NonNullable<Awaited<ReturnType<Miniflare['dispatchFetch']>>['webSocket']>; viewer: number | 'full'; pushes: MatchSnapshot[] }[] = [];
+    const check = (state: MatchSnapshot, viewer: number | 'full') => {
+      expect(state.view.legalActions).toEqual([]);
+      if (viewer === 'full') expect(state.view.cells.filter(Boolean).every(p => !p?.hidden)).toBe(true);
+      else {
+        expect(state.view.cells.filter(p => p?.seat === viewer).every(p => !p?.hidden)).toBe(true);
+        expect(state.view.cells.filter(p => p && p.seat !== viewer).every(p => p?.hidden)).toBe(true);
+      }
+    };
+    try {
+      for (const viewer of ['full', 0, 1] as const) {
+        check(await snapshot(match.id, viewer), viewer);
+        const response = await mf.dispatchFetch(`https://arena.test/matches/${match.id}/socket?seat=${viewer}`, {
+          headers: { 'X-Arena-Owner': owner, 'X-Arena-Internal': internal, Upgrade: 'websocket' },
+        });
+        expect(response.status).toBe(101);
+        const socket = response.webSocket!, pushes: MatchSnapshot[] = [];
+        socket.addEventListener('message', event => {
+          if (String(event.data) !== 'pong') pushes.push(JSON.parse(String(event.data)).snapshot);
+        });
+        socket.accept();
+        streams.push({ socket, viewer, pushes });
+        await until(() => pushes.length > 0, 'AI duel watch initial snapshot');
+        check(pushes[0], viewer);
+      }
+      const current = await snapshot(match.id, 'full');
+      expect((await command(match.id, { type: 'action', seat: 0, actionId: 'move:25:30', version: current.version }, 0)).status).toBe(400);
+      expect(calls).toHaveLength(0);
+      for (const ply of [1, 2]) {
+        expect((await command(match.id, { type: 'step' }, 'full')).status).toBe(200);
+        await until(async () => (await snapshot(match.id, 'full')).view.ply === ply, 'one fixture AI move');
+      }
+      expect(calls).toHaveLength(2);
+      calls.forEach(({ body }, seat) => {
+        const sent = body.state.position;
+        expect(sent.yourSeat).toBe(seat);
+        expect(sent.pieces.filter((p: any) => p.seat !== seat).every((p: any) => p.kind === 'unknown')).toBe(true);
+        expect(sent.pieces.filter((p: any) => p.seat === seat).every((p: any) => p.kind !== 'unknown')).toBe(true);
+      });
+      await command(match.id, { type: 'end' }, 'full');
+      for (const { viewer, pushes } of streams) {
+        await until(() => pushes.some(p => p.status === 'finished'), 'watch terminal broadcast');
+        check(pushes.at(-1)!, viewer);
+        const state = await snapshot(match.id, viewer);
+        check(state, viewer);
+        for (const event of state.events.filter(e => e.type === 'action')) {
+          expect(!!event.reasoning).toBe(viewer === 'full' || viewer === event.seat);
+          expect(!!event.metrics?.probabilities).toBe(viewer === 'full' || viewer === event.seat);
+        }
+      }
+      const replay = await (await request(`/matches/${match.id}/replay`)).json() as ReplayManifest;
+      expect(replay.frames[0].cells.filter(Boolean).every(p => !p?.hidden)).toBe(true);
+      const human = await create('army');
+      expect((await request(`/matches/${human.id}?seat=full`)).status).toBe(400);
+    } finally { for (const { socket } of streams) socket.close(); }
   });
 
   it('projects restored Army reasoning only to its allowed human seat until the match ends', async () => {

@@ -2,6 +2,9 @@ import { createServer, request as httpRequest } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { Plugin } from 'vite';
 
+const matchSocketPath = '^/api/arena/matches/[a-zA-Z0-9_-]{1,128}/socket(?:\\?seat=(?:0|1|spectator|full))?$';
+const allowedSocketPath = new RegExp(matchSocketPath);
+
 /** Explicit origins only: public dev access must use HTTPS. Do not inherit
  * auth wildcard domains or trust the request Host / forwarded headers. */
 export function arcadeDevAllowedOrigins(
@@ -34,9 +37,20 @@ export function arcadeDevAllowedOrigins(
 /** Node fetch cannot relay a workerd WebSocket upgrade. This dev-only bridge
  * validates the existing server session before forwarding to the loopback runner. */
 export function arcadeWebSocketBridge(): Plugin {
+  let closeBridge: (() => Promise<void>) | undefined;
   return {
     name: 'arena-authenticated-dev-websocket',
     apply: 'serve',
+    // Chess clients use same-origin URLs, including through the existing Tunnel.
+    // Vite must relay the upgrade before Nitro's Node fetch handler sees it.
+    config: () => ({ server: { proxy: {
+      [matchSocketPath]: {
+        target: `http://127.0.0.1:${process.env.VITE_ARCADE_SOCKET_PORT || '5094'}`,
+        ws: true,
+      },
+    } } }),
+    // Await port release while Vite closes the old server during dev restart.
+    async buildEnd() { await closeBridge?.(); },
     async configureServer(server) {
       // Keep realtime upgrades independent of Vite's HMR handshake lifecycle.
       const port = Number(process.env.VITE_ARCADE_SOCKET_PORT || 5094);
@@ -44,15 +58,18 @@ export function arcadeWebSocketBridge(): Plugin {
         throw new Error('Invalid VITE_ARCADE_SOCKET_PORT');
       const socketServer = createServer((_request, response) => { response.writeHead(404); response.end(); });
       const clients = new Set<Duplex>();
-      server.httpServer?.on('close', () => {
+      let closing: Promise<void> | undefined;
+      const close = () => closing ??= new Promise<void>((resolve) => {
         for (const client of clients) client.destroy();
-        socketServer.close();
+        socketServer.close(() => resolve());
       });
+      closeBridge = close;
+      server.httpServer?.on('close', () => { void close(); });
       socketServer.on('upgrade', (request, socket, head) => {
         clients.add(socket);
         socket.on('close', () => clients.delete(socket));
         const path = request.url ?? '';
-        if (!/^\/api\/arena\/arcade-sessions\/[a-zA-Z0-9_-]{1,128}\/socket(?:\?since=\d+)?$/.test(path)) { socket.destroy(); return; }
+        if (!allowedSocketPath.test(path) && !/^\/api\/arena\/arcade-sessions\/[a-zA-Z0-9_-]{1,128}\/socket(?:\?since=\d+)?$/.test(path)) { socket.destroy(); return; }
         const reject = (status: number) => {
           if (!socket.destroyed) socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
         };
@@ -97,10 +114,15 @@ export function arcadeWebSocketBridge(): Plugin {
           upstream.end();
         })().catch(() => reject(502));
       });
-      await new Promise<void>((resolve, reject) => {
-        socketServer.once('error', reject);
-        socketServer.listen(port, '127.0.0.1', resolve);
-      });
+      // Vite constructs the next plugin before closing the old server. Binding
+      // inside configureServer races the old listener; wait for the new HTTP
+      // server to listen, which happens after old-server cleanup has completed.
+      socketServer.on('error', (error) => server.config.logger.error(`Arena WebSocket bridge: ${error.message}`));
+      const listen = () => {
+        if (!closing) socketServer.listen(port, '127.0.0.1');
+      };
+      if (server.httpServer?.listening) listen();
+      else server.httpServer?.once('listening', listen);
     },
   };
 }

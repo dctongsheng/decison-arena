@@ -9,7 +9,7 @@ export function getGame(id: GameId | string): GameAdapter {
   if (!game) throw new Error('未知游戏');
   return game;
 }
-export { armyTerrain } from './army';
+export { armyTerrain, armyWatchView } from './army';
 export { gomokuWinningLine } from './gomoku';
 export { arcadeGames, getArcadeGame, snake, tetris, platformer } from './arcade';
 export type { SnakeState, TetrisState, PlatformerState } from './arcade';

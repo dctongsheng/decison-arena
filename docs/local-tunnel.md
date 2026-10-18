@@ -7,6 +7,7 @@
 - 独立 Tunnel：`decision-arena-local`，ID `9836f8d4-f8af-40b0-94a5-0a7b4f333e4c`。
 - `arena.startlux-decision.com` 的 proxied CNAME 指向该 Tunnel。
 - `/api/arena/arcade-sessions/<id>/socket` → `http://127.0.0.1:5094`。
+- 棋类 `/api/arena/matches/<id>/socket?seat=...` 继续走同源 5091，由 Vite 的 WebSocket proxy 转到同一个认证 Bridge（5094）；无需修改现有 Tunnel 路由。Cloudflare Worker 构建仍使用原有 Service Binding。
 - 其余网页/API → `http://127.0.0.1:5091`；内部 runner 5092 不转发到公网。
 - Tunnel 配置：`~/.cloudflared/decision-arena-local.yml`。
 - 独立用户 LaunchAgent：`~/Library/LaunchAgents/dev.startlux.decision-arena-tunnel.plist`。登录 macOS 后启动，退出时自动重启；不修改原有 Tunnel 的配置。

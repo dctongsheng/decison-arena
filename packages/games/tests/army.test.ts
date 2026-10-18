@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Seat } from '@decision-arena/core';
-import { army, armyTerrain, type ArmyState } from '../src/army';
+import { army, armyTerrain, armyWatchView, type ArmyState } from '../src/army';
 
 type Kind = NonNullable<ArmyState['board'][number]>['kind'];
 function sparse(pieces: [number, Seat, Kind][], turn: Seat = 0): ArmyState {
@@ -15,6 +15,24 @@ const move = (state: ArmyState, from: number, to: number) => army.apply(state, s
 const ids = (state: ArmyState, seat: Seat = state.turn) => army.legalActions(state, seat).map(a => a.id);
 
 describe('independent hidden-information army rules', () => {
+  it('keeps explicit watch perspectives after natural completion without changing model observations or full replays', () => {
+    const state = sparse([[53, 0, 'bomb'], [50, 1, 'platoon']]);
+    const before = army.observe(state, 0);
+    const full = armyWatchView(state, 'full');
+    expect(full.cells.filter(Boolean).every(p => !p?.hidden)).toBe(true);
+    expect(full.legalActions).toEqual([]);
+    expect(army.observe(state, 0)).toEqual(before);
+    const finished = move(state, 53, 58);
+    for (const seat of [0, 1] as const) {
+      const side = armyWatchView(finished, seat);
+      expect(side.phase).toBe('finished');
+      expect(side.cells.filter(p => p?.seat === seat).every(p => !p?.hidden)).toBe(true);
+      expect(side.cells.filter(p => p?.seat !== seat && p).some(p => p?.hidden)).toBe(true);
+      expect(side.legalActions).toEqual([]);
+    }
+    expect(army.view(finished, 'spectator').cells.filter(Boolean).every(p => !p?.hidden)).toBe(true);
+    expect(armyWatchView(finished, 'full').cells).toEqual(army.view(finished, 'full').cells);
+  });
   it('reproducibly creates 25 legal pieces per side with both seats unready', () => {
     for (let seed = 0; seed < 30; seed++) {
       const state = army.create({}, String(seed)) as ArmyState;

@@ -384,6 +384,7 @@ describe('match ownership', () => {
       'https://match.internal/matches/match-a?seat=1&since=3'
     );
     expect(() => matchQuery(new URLSearchParams('seat=full'))).toThrow();
+    expect(matchQuery(new URLSearchParams('seat=full&ownerId=owner-b'), { allowFull: true })).toBe('?seat=full');
     expect(() => matchQuery(new URLSearchParams('since=-1'))).toThrow();
   });
   it('resolves model configuration from the owner record, ignoring browser overrides', async () => {

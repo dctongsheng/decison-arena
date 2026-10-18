@@ -22,12 +22,13 @@ export function privateReasoningPresentation(
     provider?: PublicModelProfile['provider'];
     thinkMode?: PublicModelProfile['thinkMode'];
     obscured?: boolean;
+    armyDuelWatch?: boolean;
   }
 ): ReasoningPresentation {
   if (
     context.gameId === 'army' &&
-    context.status !== 'finished' &&
-    (context.obscured || context.viewer !== event.seat)
+    (context.armyDuelWatch || context.status !== 'finished') &&
+    (context.obscured || (context.viewer !== event.seat && !(context.armyDuelWatch && context.viewer === 'full')))
   ) {
     return { kind: 'restricted' };
   }

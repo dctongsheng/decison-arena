@@ -46,11 +46,11 @@ export function assertSameOrigin(request: Request) {
   }
 }
 
-export function matchQuery(params: URLSearchParams): string {
+export function matchQuery(params: URLSearchParams, options: { allowFull?: boolean } = {}): string {
   const allowed = new URLSearchParams();
   const seat = params.get('seat');
   if (seat !== null) {
-    if (!['0', '1', 'spectator'].includes(seat))
+    if (!['0', '1', 'spectator', ...(options.allowFull ? ['full'] : [])].includes(seat))
       throw new ArenaError('Invalid viewing seat.');
     allowed.set('seat', seat);
   }

@@ -24,6 +24,7 @@ export function PrivateDecisionReasoning({
     snapshot.seats[event.seat].kind !== 'ai'
   )
     return null;
+  const armyDuelWatch = snapshot.gameId === 'army' && snapshot.seats.every((seat) => seat.kind === 'ai');
   return (
     <DecisionReasoning
       presentation={privateReasoningPresentation(event, {
@@ -31,6 +32,7 @@ export function PrivateDecisionReasoning({
         status: snapshot.status,
         viewer,
         obscured,
+        armyDuelWatch,
         provider: snapshot.seats[event.seat].profile?.provider,
         thinkMode: snapshot.seats[event.seat].profile?.thinkMode,
       })}
@@ -38,7 +40,7 @@ export function PrivateDecisionReasoning({
       labels={{
         title: t('room.reasoning'),
         returned: t('room.reasoning_returned'),
-        restricted: t('room.reasoning_restricted'),
+        restricted: t(armyDuelWatch ? 'room.watch_reasoning_restricted' : 'room.reasoning_restricted'),
         disabled: t('room.reasoning_disabled'),
         notUsed: t('room.reasoning_not_used'),
         missing: t('room.reasoning_missing'),

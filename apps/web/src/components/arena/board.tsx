@@ -112,7 +112,7 @@ export function Board({
               )}
               {destination && !piece && <span className="arena-move-dot" />}
               {lastTo === index && piece && (
-                <span className="arena-last-mark" />
+                <span className="arena-last-mark" aria-hidden="true" />
               )}
             </button>
           );

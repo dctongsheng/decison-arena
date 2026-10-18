@@ -39,6 +39,7 @@ describe('development bridge authentication (mock transports only)', () => {
   let socketServer: EventEmitter & { listen: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
   let viteServer: EventEmitter & { address: () => { port: number } };
   let upstream: EventEmitter & { setTimeout: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> };
+  let plugin: ReturnType<typeof arcadeWebSocketBridge>;
   const fetchMock = vi.fn();
 
   beforeEach(async () => {
@@ -50,33 +51,54 @@ describe('development bridge authentication (mock transports only)', () => {
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ user: { id: 'fixture-owner' } }) });
     socketServer = Object.assign(new EventEmitter(), {
-      listen: vi.fn((_port: number, _host: string, ready: () => void) => ready()), close: vi.fn(),
+      listen: vi.fn(), close: vi.fn((done: () => void) => done()),
     });
     viteServer = Object.assign(new EventEmitter(), { address: () => ({ port: 5091 }) });
     upstream = Object.assign(new EventEmitter(), { setTimeout: vi.fn(), end: vi.fn(), destroy: vi.fn() });
     mocked.createServer.mockReturnValue(socketServer);
     mocked.request.mockReturnValue(upstream);
-    const configure = arcadeWebSocketBridge().configureServer;
+    plugin = arcadeWebSocketBridge();
+    const configure = plugin.configureServer;
     if (typeof configure !== 'function') throw new Error('Expected server hook');
     await configure.call({} as never, { httpServer: viteServer } as never);
+    expect(socketServer.listen).not.toHaveBeenCalled();
+    viteServer.emit('listening');
   });
   afterEach(() => {
     viteServer.emit('close');
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
-  function upgrade(origin?: string, headers: Record<string, string> = {}) {
+  function upgrade(origin?: string, headers: Record<string, string> = {}, path = '/api/arena/arcade-sessions/arcade-fixture/socket?since=42') {
     const socket = Object.assign(new EventEmitter(), { destroyed: false, end: vi.fn(), destroy: vi.fn() });
     socketServer.emit('upgrade', {
-      url: '/api/arena/arcade-sessions/arcade-fixture/socket?since=42',
+      url: path,
       headers: { origin, cookie: 'fixture-cookie', 'sec-websocket-key': 'fixture-websocket-key', ...headers },
     }, socket, Buffer.alloc(0));
     return socket;
   }
+  it('routes same-origin chess upgrades to the authenticated bridge, leaving ordinary HTTP routes alone', async () => {
+    const config = plugin.config;
+    if (typeof config !== 'function') throw new Error('Expected config hook');
+    const result = await config.call({} as never, {}, { command: 'serve', mode: 'development' });
+    const proxy = result!.server!.proxy!;
+    const [pattern, target] = Object.entries(proxy)[0];
+    expect(target).toEqual({ target: 'http://127.0.0.1:5094', ws: true });
+    expect(new RegExp(pattern).test('/api/arena/matches/id/socket?seat=0')).toBe(true);
+    expect(new RegExp(pattern).test('/api/arena/matches/id/commands')).toBe(false);
+  });
+  it('releases the independent listener before Vite restarts', async () => {
+    const close = plugin.buildEnd;
+    if (typeof close !== 'function') throw new Error('Expected buildEnd hook');
+    await close.call({} as never);
+    expect(socketServer.close).toHaveBeenCalledOnce();
+    viteServer.emit('close');
+    expect(socketServer.close).toHaveBeenCalledOnce();
+  });
   it('authenticates a configured tunnel origin locally and derives owner only from that session', async () => {
     upgrade('https://arena.startlux-decision.com', { 'x-arena-owner': 'forged-owner', 'x-forwarded-host': 'evil.test' });
     await vi.waitFor(() => expect(mocked.request).toHaveBeenCalledOnce());
-    expect(socketServer.listen).toHaveBeenCalledWith(5094, '127.0.0.1', expect.any(Function));
+    expect(socketServer.listen).toHaveBeenCalledWith(5094, '127.0.0.1');
     expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:5091/api/auth/get-session', expect.objectContaining({
       headers: { Cookie: 'fixture-cookie' }, redirect: 'error',
     }));
@@ -101,4 +123,30 @@ describe('development bridge authentication (mock transports only)', () => {
     await vi.waitFor(() => expect(socket.end).toHaveBeenCalledWith(expect.stringContaining('401 Rejected')));
     expect(mocked.request).not.toHaveBeenCalled();
   });
+  it.each(['0', '1', 'spectator', 'full'])('preserves chess viewer %s and authenticates the derived owner', async (seat) => {
+    upgrade('http://127.0.0.1:5091', { 'x-arena-owner': 'forged-owner' }, `/api/arena/matches/chess-fixture/socket?seat=${seat}`);
+    await vi.waitFor(() => expect(mocked.request).toHaveBeenCalledOnce());
+    const [target, options] = mocked.request.mock.calls[0];
+    expect(target.toString()).toBe(`http://127.0.0.1:5092/matches/chess-fixture/socket?seat=${seat}`);
+    expect(options.headers['X-Arena-Owner']).toBe('fixture-owner');
+    expect(options.headers.Cookie).toBeUndefined();
+  });
+  it('rejects anonymous chess upgrades', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => null });
+    const socket = upgrade('http://127.0.0.1:5091', {}, '/api/arena/matches/id/socket?seat=0');
+    await vi.waitFor(() => expect(socket.end).toHaveBeenCalledWith(expect.stringContaining('401 Rejected')));
+    expect(mocked.request).not.toHaveBeenCalled();
+  });
+  it('rejects foreign-origin chess upgrades before authentication', () => {
+    const socket = upgrade('https://evil.test', {}, '/api/arena/matches/id/socket?seat=1');
+    expect(socket.end).toHaveBeenCalledWith(expect.stringContaining('403 Rejected'));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it.each(['?seat=admin', '?seat=0&owner=other', '?seat=0&seat=1', '?seat=2', '/../../secrets'])(
+    'does not broaden the chess path allowlist: %s', (suffix) => {
+      const socket = upgrade('http://127.0.0.1:5091', {}, `/api/arena/matches/id/socket${suffix}`);
+      expect(socket.destroy).toHaveBeenCalledOnce();
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
 });

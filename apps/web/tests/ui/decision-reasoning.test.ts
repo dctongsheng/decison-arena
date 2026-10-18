@@ -167,6 +167,12 @@ describe('private decision reasoning display', () => {
       )
     ).toEqual({ kind: 'restricted' });
   });
+  it.each(['running', 'finished'] as const)('honors explicit AI duel watch perspectives while %s', (status) => {
+    expect(privateReasoningPresentation(event, { gameId: 'army', status, viewer: 'full', armyDuelWatch: true }).kind).toBe('returned');
+    expect(privateReasoningPresentation(event, { gameId: 'army', status, viewer: 0, armyDuelWatch: true }).kind).toBe('returned');
+    expect(privateReasoningPresentation(event, { gameId: 'army', status, viewer: 1, armyDuelWatch: true }).kind).toBe('restricted');
+    expect(privateReasoningPresentation(event, { gameId: 'army', status, viewer: 'spectator', armyDuelWatch: true }).kind).toBe('restricted');
+  });
   it('hides even the current seat text during the handover curtain', () => {
     expect(
       privateReasoningPresentation(event, {

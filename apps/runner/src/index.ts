@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { getGame } from '@decision-arena/games';
+import { armyWatchView, getGame } from '@decision-arena/games';
 import { decide, decryptSecret, isBambooNodeProvider, validateEndpoint } from '@decision-arena/providers';
 import { assertBambooNodeAccess, assertBambooNodeKey } from './bamboonode';
 import { localProviderOptions } from './local-provider-policy';
@@ -56,6 +56,7 @@ export class MatchObject extends DurableObject<Env> {
     });
   }
   private isFinished(){ return this.rec?.status === 'finished'; }
+  private isArmyDuel(){ return this.rec?.input.gameId === 'army' && this.rec.input.seats.every(seat=>seat.kind==='ai'); }
   private result(){ return this.rec?.result ?? this.rec?.state.result; }
   private require(ownerId:string):RecordState {
     if(!this.rec || this.rec.ownerId!==ownerId)throw new Error('Match not found');
@@ -76,8 +77,12 @@ export class MatchObject extends DurableObject<Env> {
   }
   private transaction(fn:()=>void){this.ctx.storage.transactionSync(()=>{fn();this.rec!.needsSync=true;this.persist();});}
   private selectedViewer(request:Request,r:RecordState):Viewer {
-    if(this.isFinished())return 'full';
     const seat=new URL(request.url).searchParams.get('seat');
+    // require(ownerId) runs before this: omniscient watching is private, and
+    // never grants a human opponent access to an AI's unrevealed pieces.
+    if(this.isArmyDuel() && (seat==='full'||seat==='0'||seat==='1'))return seat==='full'?'full':Number(seat) as Seat;
+    if(this.isFinished())return 'full';
+    if(seat==='full')throw new Error('Full view is only available for AI versus AI Army matches');
     if(seat==='0'||seat==='1') {
       const n=Number(seat) as Seat;
       if(r.input.seats[n].kind!=='human')throw new Error('AI seat information is private');
@@ -88,18 +93,19 @@ export class MatchObject extends DurableObject<Env> {
   private snapshot(viewer:Viewer,since=0):MatchSnapshot {
     const r=this.rec!;
     const events=this.ctx.storage.sql.exec<{value:string}>('SELECT value FROM events WHERE seq>? ORDER BY seq LIMIT ?',since,MAX_MATCH_EVENTS+4).toArray().map(row=>JSON.parse(row.value) as MatchEvent);
-    if(r.input.gameId==='army'&&!this.isFinished())for(const e of events){if(viewer!==e.seat){
+    const watch=this.isArmyDuel();
+    if(r.input.gameId==='army'&&(watch?viewer!=='full':!this.isFinished()))for(const e of events){if(viewer!==e.seat){
       // Thoughts can name unrevealed pieces just like candidate probabilities.
       // Filter the parsed projection only; the private persisted event stays intact.
       delete e.reasoning;
       if(e.metrics){const{elapsedMs,actualModel,usage,thoughtUsed}=e.metrics;e.metrics={elapsedMs,actualModel,usage,thoughtUsed};}
     }}
-    return {id:r.id,gameId:r.input.gameId,status:r.status,version:r.version,view:{...getGame(r.input.gameId).view(r.state,viewer),...(this.isFinished()?{phase:'finished' as const,result:this.result(),legalActions:[]}: {})},seats:publicSeats(r.input.seats),events,error:r.error,limits:{maxPlies:MAX_PLIES,maxActiveMs:MAX_ACTIVE_MS,activeMs:r.activeMs}};
+    return {id:r.id,gameId:r.input.gameId,status:r.status,version:r.version,view:{...(watch?armyWatchView(r.state,viewer):getGame(r.input.gameId).view(r.state,viewer)),...(this.isFinished()?{phase:'finished' as const,result:this.result(),legalActions:[]}: {})},seats:publicSeats(r.input.seats),events,error:r.error,limits:{maxPlies:MAX_PLIES,maxActiveMs:MAX_ACTIVE_MS,activeMs:r.activeMs}};
   }
   private broadcast(){
     for(const socket of this.ctx.getWebSockets())try {
       const attachment=socket.deserializeAttachment() as {viewer:Viewer};
-      const viewer=this.rec!.status==='finished'?'full':attachment.viewer;
+      const viewer=this.isFinished()&&!(this.isArmyDuel()&&typeof attachment.viewer==='number')?'full':attachment.viewer;
       socket.send(JSON.stringify({type:'snapshot',snapshot:this.snapshot(viewer)}));
     }catch{socket.close(1011,'Connection expired');}
   }

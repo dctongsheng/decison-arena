@@ -1887,6 +1887,58 @@
   border-radius: 2px;
   z-index: 3;
   box-shadow: 0 0 0 1px #f5e5bc;
+  pointer-events: none;
+}
+/* Lettered pieces need an outline, not a dot across their rank/name. */
+.arena-board.army .arena-last-mark,
+.arena-board.xiangqi .arena-last-mark {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(83% + 6px);
+  background: transparent;
+  border: 2px solid #c3914e;
+  border-radius: 50%;
+  box-shadow: none;
+}
+.arena-board.army .arena-last-mark {
+  aspect-ratio: 1.8;
+  border-radius: 6px;
+}
+.arena-watch-view {
+  padding: 14px 24px;
+  border-bottom: 1px solid #e6eadf;
+}
+.arena-watch-view-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.arena-watch-view-options > span {
+  margin-right: 8px;
+  color: #6e805e;
+  font-size: 13px;
+}
+.arena-watch-view-options button {
+  padding: 7px 15px;
+  border: 1px solid #d9e1d0;
+  border-radius: 8px;
+  color: #526d44;
+  background: #fffef9;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.arena-watch-view-options button[aria-pressed='true'] {
+  background: #edf3e2;
+  border-color: #87a765;
+  color: #315c41;
+}
+.arena-watch-view > p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #82916f;
 }
 .arena-board-foot {
   display: flex;

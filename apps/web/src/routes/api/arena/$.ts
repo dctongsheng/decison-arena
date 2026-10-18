@@ -77,7 +77,7 @@ async function handler({ request }: { request: Request }) {
         result = await arena.createMatch(ownerId!, await readJson(request));
       else throw new ArenaError('Method not allowed.', 405);
     } else if (resource === 'matches' && id) {
-      const query = matchQuery(url.searchParams);
+      const query = matchQuery(url.searchParams, { allowFull: true });
       if (subresource === 'socket' && method === 'GET') {
         assertSameOrigin(request);
         if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
