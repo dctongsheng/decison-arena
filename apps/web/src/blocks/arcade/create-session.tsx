@@ -7,6 +7,7 @@ import {
   type ArcadeMode,
   type ArcadeReplayV2,
   type ArcadeSession,
+  type TetrisHarnessVersion,
 } from '@decision-arena/core';
 import {
   ArrowRight,
@@ -25,7 +26,6 @@ import { useSession } from '@/core/auth/client';
 import { Link, useRouter } from '@/core/i18n/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { m } from '@/paraglide/messages.js';
-import { availableModels } from '@/blocks/arena/bamboonode-access';
 import { BambooModelConnection } from '@/blocks/arena/bamboonode-connection';
 import { BambooJevNotice } from '@/blocks/arena/bamboonode-billing';
 import {
@@ -37,13 +37,13 @@ import {
   SubmitButton,
   t,
   useModels,
+  type SavedModel,
 } from '@/blocks/arena/shared';
 
 import { ArcadeArtwork } from './canvas';
 import {
   arcadeControllerKinds,
   arcadeCreateControllers,
-  arcadeModelsReady,
   emptyArcadeSelection,
   readArcadePreferences,
   rememberArcadeSelection,
@@ -53,6 +53,8 @@ import {
   type ArcadeSelection,
 } from './create-preferences';
 import { a } from './messages';
+import { arcadeFormConfig, arcadeModelChoices, tetrisCreationVersion, TETRIS_BASELINE, TETRIS_V8, type ArcadeModelDisabledReason } from './tetris-harness';
+import { TetrisHarnessNotice } from './tetris-planning';
 
 import './arcade.css';
 
@@ -66,7 +68,9 @@ export function CreateArcadePage({
   return (
     <ArenaShell>
       <AuthGate>
-        <BambooModelConnection />
+        <div id="arcade-bamboonode-connection">
+          <BambooModelConnection />
+        </div>
         <CreateContent
           key={`${game || ''}:${clone || ''}`}
           game={game}
@@ -76,10 +80,59 @@ export function CreateArcadePage({
     </ArenaShell>
   );
 }
+
+function disabledModelReason(reason: ArcadeModelDisabledReason) {
+  if (reason === 'bamboo') return m['arcade.model_unavailable.bamboo']();
+  if (reason === 'v8') return m['arcade.model_unavailable.v8']();
+  return m['arcade.model_unavailable.manual']();
+}
+
+export function ArcadeModelPicker({
+  choices,
+  value,
+  onChange,
+}: {
+  choices: { model: SavedModel; reasons: ArcadeModelDisabledReason[] }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <label className="arena-field">
+        <span>{a('pick_model')}</span>
+        <select
+          required
+          value={choices.some(({ model }) => model.id === value) ? value : ''}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          <option value="">{a('pick_model')}</option>
+          {choices.map(({ model, reasons }) => (
+            <option value={model.id} key={model.id} disabled={reasons.length > 0}>
+              {model.name} · {model.model || t('models.service_default')}
+              {model.source === 'bamboonode'
+                ? ` · ${m['arena.bamboo.model_source']()}`
+                : ''}
+              {reasons.length ? ` — ${reasons.map(disabledModelReason).join(' / ')}` : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="arcade-notice">
+        {m['arcade.model_access_help']()}{' '}
+        <a href="#arcade-bamboonode-connection" className="arena-text-link">
+          {m['arcade.model_access_connect']()}
+        </a>{' · '}
+        <Link href="/models" className="arena-text-link">
+          {m['arcade.model_access_settings']()}
+        </Link>
+      </p>
+    </>
+  );
+}
+
 function CreateContent({ game, clone }: { game?: string; clone?: string }) {
   const router = useRouter(),
     models = useModels();
-  const playableModels = availableModels(models.data?.items);
   const { data: identity } = useSession();
   const userId = identity?.user.id || '';
   const [preferencesReady, setPreferencesReady] = useState(false);
@@ -102,6 +155,14 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
       apiPost<ArcadeSession>('/api/arena/arcade-sessions', body),
     onSuccess: (data) => router.push(`/arcade/${data.id}`),
   });
+  function choicesForSeat(values: { gameId: ArcadeGameId; tetrisHarnessVersion: TetrisHarnessVersion }, index: number) {
+    const original = clone ? source.data?.replay.controllers[index]?.profile : undefined;
+    return arcadeModelChoices(models.data?.items, values.gameId, values.tetrisHarnessVersion, original?.provider, original?.model);
+  }
+  function selectionsReady(values: ArcadeSelection & { mode: ArcadeMode; gameId: ArcadeGameId; tetrisHarnessVersion: TetrisHarnessVersion }) {
+    return arcadeControllerKinds(values.mode).every((kind, index) => kind === 'human' ||
+      choicesForSeat(values, index).some(({ model, reasons }) => !reasons.length && model.id === (index === 0 ? values.profile0 : values.profile1)));
+  }
   const form = useForm({
     defaultValues: {
       gameId: (ARCADE_GAME_IDS.includes(game as ArcadeGameId)
@@ -111,6 +172,7 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
       ...emptyArcadeSelection(),
       seed: '',
       level: '1',
+      tetrisHarnessVersion: tetrisCreationVersion(),
     },
     validators: {
       onSubmit: z.object({
@@ -120,21 +182,22 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
         profile1: z.string(),
         seed: z.string().max(128),
         level: z.string(),
+        tetrisHarnessVersion: z.enum(['tetris-harness-baseline-v1', 'tetris-harness-v8-realtime-v1']),
       }),
     },
     onSubmit: async ({ value }) => {
+      if (!selectionsReady(value)) throw new Error(a('required_model'));
       const controllers = arcadeCreateControllers(
         value.mode,
         value,
-        playableModels.map((profile) => profile.id)
+        (models.data?.items || []).map((profile) => profile.id)
       );
       if (!controllers) throw new Error(a('required_model'));
       await create.mutateAsync({
         gameId: value.gameId,
         mode: value.mode,
         controllers,
-        config:
-          value.gameId === 'platformer' ? { level: Number(value.level) } : {},
+        config: arcadeFormConfig(value.gameId, value.level, value.tetrisHarnessVersion),
         ...(value.seed ? { seed: value.seed } : {}),
         ...(clone ? { cloneId: clone } : {}),
       });
@@ -226,6 +289,7 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
       form.setFieldValue('mode', replay.mode);
       form.setFieldValue('seed', replay.seed);
       form.setFieldValue('level', String(replay.config.level || 1));
+      form.setFieldValue('tetrisHarnessVersion', tetrisCreationVersion(replay.config));
     }
   }, [source.data]);
   if (clone && source.isPending) return <Loading />;
@@ -320,17 +384,16 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
             {(values) => (
               <section className="arena-panel arcade-form-section">
                 <h2>{a('choose_controllers')}</h2>
+                {values.gameId === 'tetris' && values.mode === 'ai-ai' && values.tetrisHarnessVersion === TETRIS_V8 && (
+                  <p className="arcade-notice"><strong>{m['arcade.tetris.both_sides_v8']()}</strong></p>
+                )}
                 <div className="arcade-controller-options">
                   {arcadeControllerKinds(values.mode).map((kind, index) => {
                     const ai = kind === 'ai';
                     const original =
                       source.data?.replay.controllers[index]?.profile;
-                    const available = playableModels.filter(
-                      (model) =>
-                        !clone ||
-                        !original ||
-                        model.provider === original.provider
-                    );
+                    const choices = choicesForSeat(values, index);
+                    const available = choices.filter(({ reasons }) => !reasons.length).map(({ model }) => model);
                     return (
                       <div className="arcade-controller-config" key={index}>
                         <div className="arcade-controller-label">
@@ -362,29 +425,14 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
                               name={index === 0 ? 'profile0' : 'profile1'}
                             >
                               {(field) => (
-                                <label className="arena-field">
-                                  <span>{a('pick_model')}</span>
-                                  <select
-                                    required
-                                    value={field.state.value}
-                                    onChange={(event) => {
-                                      field.handleChange(event.target.value);
-                                      persist();
-                                    }}
-                                  >
-                                    <option value="">{a('pick_model')}</option>
-                                    {available.map((model) => (
-                                      <option value={model.id} key={model.id}>
-                                        {model.name} ·{' '}
-                                        {model.model ||
-                                          t('models.service_default')}
-                                        {model.source === 'bamboonode'
-                                          ? ` · ${m['arena.bamboo.model_source']()}`
-                                          : ''}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
+                                <ArcadeModelPicker
+                                  choices={choices}
+                                  value={field.state.value}
+                                  onChange={(value) => {
+                                    field.handleChange(value);
+                                    persist();
+                                  }}
+                                />
                               )}
                             </form.Field>
                             <BambooJevNotice
@@ -392,7 +440,7 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
                                 (index === 0 ? values.profile0 : values.profile1)
                               )}
                             />
-                            {!models.isPending && !available.length && (
+                            {!models.isPending && !choices.length && (
                               <p className="arcade-notice">
                                 {a('models_empty')}{' '}
                                 <Link href="/models">{a('models_add')}</Link>
@@ -458,6 +506,27 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
           </form.Field>
           <form.Subscribe selector={(state) => state.values.gameId}>
             {(id) =>
+              id === 'tetris' && (
+                <form.Field name="tetrisHarnessVersion">
+                  {(field) => (
+                    <>
+                      <label className="arena-field">
+                        <span>{a('tetris.harness')}</span>
+                        <select value={field.state.value} disabled={!!clone}
+                          onChange={(event) => field.handleChange(event.target.value === TETRIS_V8 ? TETRIS_V8 : TETRIS_BASELINE)}>
+                          <option value={TETRIS_V8}>{a('tetris.v8')}</option>
+                          <option value={TETRIS_BASELINE}>{a('tetris.baseline')}</option>
+                        </select>
+                      </label>
+                      <TetrisHarnessNotice config={{ tetrisHarnessVersion: field.state.value }} />
+                    </>
+                  )}
+                </form.Field>
+              )
+            }
+          </form.Subscribe>
+          <form.Subscribe selector={(state) => state.values.gameId}>
+            {(id) =>
               id === 'platformer' && (
                 <form.Field name="level">
                   {(field) => (
@@ -494,11 +563,7 @@ function CreateContent({ game, clone }: { game?: string; clone?: string }) {
                     source.error ||
                     models.error ||
                     models.isPending ||
-                    !arcadeModelsReady(
-                      values.mode,
-                      values,
-                      playableModels.map((model) => model.id)
-                    )
+                    !selectionsReady(values)
                   )
                 }
               >

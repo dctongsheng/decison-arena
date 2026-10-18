@@ -6,14 +6,14 @@ The integration is implemented but **disabled by default** (`AUTH_MODE=local`). 
 
 The proposed [local client registration](bamboonode-client-registration.json) is a reviewable registration checklist, not an executed request or evidence of an existing client. BambooNode's server operator must register it and provide the actual client ID and secret through a private channel.
 
-The planned production origin is `https://arena.startlux-desicion.com` (the hostname supplied by the project owner). Use the separate [production client registration](bamboonode-production-client-registration.json), with client ID `decision-arena` and its own secret. Keep the development callbacks on `decision-arena-local`. These checklists do not register clients, configure DNS or deploy the site.
+The planned production origin is `https://arena.startlux-decision.com` (the hostname supplied by the project owner). Use the separate [production client registration](bamboonode-production-client-registration.json), with client ID `decision-arena` and its own secret. Keep the development callbacks on `decision-arena-local`. These checklists do not register clients, configure DNS or deploy the site.
 
 Register exact callback URLs for the environments being used:
 
 ```text
 http://127.0.0.1:5091/api/auth/oauth2/callback/bamboonode
 http://127.0.0.1:5093/api/auth/oauth2/callback/bamboonode
-https://arena.startlux-desicion.com/api/auth/oauth2/callback/bamboonode
+https://arena.startlux-decision.com/api/auth/oauth2/callback/bamboonode
 ```
 
 The callback belongs to Arena. The user-facing authorization page belongs to `https://bamboonode.dev`; token exchange and userinfo belong to `https://api.bamboonode.dev`. The adapter permits only these verified origins in their respective roles. It does not send users to the API domain's password form.
@@ -39,7 +39,7 @@ BAMBOONODE_TOKEN_AUTH_METHOD=post
 BAMBOONODE_ACCOUNT_URL=https://bamboonode.dev
 ```
 
-For production, build with `VITE_APP_URL=https://arena.startlux-desicion.com`, set the same URL as `AUTH_URL` and `AUTH_TRUSTED_ORIGINS` in the main Worker, and use the production client's ID/secret. Register the callback exactly as written above, without a locale prefix or trailing slash. The local preview continues using its loopback origin and separate client.
+For production, build with `VITE_APP_URL=https://arena.startlux-decision.com`, set the same URL as `AUTH_URL` and `AUTH_TRUSTED_ORIGINS` in the main Worker, and use the production client's ID/secret. Register the callback exactly as written above, without a locale prefix or trailing slash. The local preview continues using its loopback origin and separate client.
 
 `BAMBOONODE_TOKEN_AUTH_METHOD` supports `post` (`client_secret_post`, the default) and `basic` (`client_secret_basic`). Public clients without a client secret are not supported by this server-side adapter. Only `openid profile email` scopes are accepted; quota, model gateway and administrator permissions are not requested.
 

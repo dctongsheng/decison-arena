@@ -13,7 +13,7 @@ Decision Arena 已完成 BambooNode OAuth 登录。下一步希望用户登录�
 - Arena 本地客户端：`decision-arena-local`
 - 本地回调：`http://127.0.0.1:5091/api/auth/oauth2/callback/bamboonode`
 - Cloudflare 本地预览回调：`http://127.0.0.1:5093/api/auth/oauth2/callback/bamboonode`
-- 未来生产客户端：`decision-arena`，回调 `https://arena.startlux-desicion.com/api/auth/oauth2/callback/bamboonode`；保持与本地客户端隔离。
+- 未来生产客户端：`decision-arena`，回调 `https://arena.startlux-decision.com/api/auth/oauth2/callback/bamboonode`；保持与本地客户端隔离。
 
 不需要在聊天、代码仓库或这份文档中填写任何真实密钥。
 

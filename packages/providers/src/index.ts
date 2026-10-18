@@ -13,6 +13,12 @@ export const BAMBOONODE_MODELS: Readonly<Record<BambooNodeProviderId, readonly s
 export function isBambooNodeProvider(provider: string): provider is BambooNodeProviderId {
   return provider === 'bamboonode-systemone' || provider === 'bamboonode-decisions';
 }
+/** Explicit request-model capabilities, not aliases inferred from response metadata. */
+export function supportsDecisionImages(profile: Pick<ModelProfile, 'provider' | 'model'>): boolean {
+  if (profile.provider === 'systemone' || profile.provider === 'custom-systemone' || profile.provider === 'bamboonode-systemone') return true;
+  return (profile.provider === 'openrouter' || profile.provider === 'custom-openrouter' || profile.provider === 'bamboonode-decisions') &&
+    (profile.model === 'typesafe/jev-1.13' || profile.model === 'typesafe/jev-1.14');
+}
 const encoder = new TextEncoder();
 export const MAX_REASONING_CHARACTERS = 16_384;
 function b64(bytes: Uint8Array): string { return btoa(Array.from(bytes, b => String.fromCharCode(b)).join('')); }
@@ -46,12 +52,26 @@ export function isPublicAddress(address: string): boolean {
   const [x,y,z] = a;
   return !(x===0||x===10||x===127||x>=224||(x===100&&y>=64&&y<=127)||(x===169&&y===254)||(x===172&&y>=16&&y<=31)||(x===192&&(y===168||y===0||y===2))||(x===198&&(y===18||y===19||(y===51&&z===100)))||(x===203&&y===0&&z===113));
 }
-export async function validateEndpoint(endpoint: string, provider?: ProviderId, options: {resolve?: boolean; fetcher?: typeof fetch; signal?: AbortSignal} = {}): Promise<string> {
+/** Trusted runtime policy only. Never populate this from a model/request payload. */
+export interface ProviderRuntimeOptions { localEndpoints?: readonly string[] }
+/** Local development accepts only literal, canonical loopback URLs. This avoids
+ * URL aliases/normalization silently widening an operator's exact allowlist. */
+export function isCanonicalLocalEndpoint(endpoint: string): boolean {
+  if(endpoint.length>2048 || !/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}\/[\x21-\x7e]*$/.test(endpoint) || /[%\\?#]/.test(endpoint)) return false;
+  try {
+    const url=new URL(endpoint);
+    return url.href===endpoint && url.hostname==='127.0.0.1' && url.protocol==='http:' && !!url.port &&
+      !url.username && !url.password && !url.search && !url.hash;
+  } catch { return false; }
+}
+export async function validateEndpoint(endpoint: string, provider?: ProviderId, options: ProviderRuntimeOptions & {resolve?: boolean; fetcher?: typeof fetch; signal?: AbortSignal} = {}): Promise<string> {
   let url: URL; try { url = new URL(endpoint); } catch { throw new Error('Invalid endpoint URL'); }
   if(provider === 'openrouter' || provider === 'systemone' || (provider && isBambooNodeProvider(provider))) {
     if(url.href !== ENDPOINTS[provider]) throw new Error('Built-in provider endpoint cannot be changed; choose a custom provider');
     return url.href;
   }
+  if((provider==='custom-systemone'||provider==='custom-openrouter') &&
+    options.localEndpoints?.includes(endpoint) && isCanonicalLocalEndpoint(endpoint)) return endpoint;
   const host = url.hostname.toLowerCase();
   if(endpoint.length>2048 || url.protocol!=='https:' || url.username || url.password || url.hash || url.search || (url.port && url.port!=='443') || !host.includes('.') || /[^a-z0-9.-]/.test(host) || /^[\d.]+$/.test(host) || /(^|\.)(localhost|local|internal|test|invalid|example|onion)$/.test(host)) throw new Error('Use a public HTTPS hostname on port 443, without credentials, query or redirects');
   if(options.resolve !== false) {
@@ -145,18 +165,53 @@ async function providerFailure(response: Response, provider: ProviderId): Promis
   } else await response.body?.cancel();
   return new Error(`Model provider returned HTTP ${response.status}`);
 }
-export async function decide(profile: ModelProfile, key: string, request: DecisionRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<DecisionResponse> {
+export const MAX_DECISION_IMAGE_BYTES = 2 * 1024 * 1024;
+function inlineDecisionImages(images: DecisionRequest['images'], jev = false): string[] | undefined {
+  if (images === undefined) return undefined;
+  if (!Array.isArray(images) || images.length !== 1) throw new Error('A visual decision requires one inline PNG observation');
+  const image = images[0], prefix = 'data:image/png;base64,';
+  if (typeof image !== 'string' || !image.startsWith(prefix) || image.length > prefix.length + Math.ceil(MAX_DECISION_IMAGE_BYTES / 3) * 4) throw new Error('Invalid or oversized decision image');
+  const encoded = image.slice(prefix.length);
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) throw new Error('Invalid decision image encoding');
+  const raw = atob(encoded);
+  if (raw.length < 33 || raw.length > MAX_DECISION_IMAGE_BYTES || raw.slice(0,8) !== '\x89PNG\r\n\x1a\n' || raw.slice(12,16) !== 'IHDR') throw new Error('Invalid PNG decision image');
+  const size = (offset: number) => raw.charCodeAt(offset) * 16777216 + raw.charCodeAt(offset+1) * 65536 + raw.charCodeAt(offset+2) * 256 + raw.charCodeAt(offset+3);
+  const width = size(16), height = size(20);
+  if (jev) {
+    // OpenRouter Decisions forwards the complete image to Jev. Reject invalid
+    // sizes rather than resizing or silently reverting to a text-only request.
+    if (width < 256 || height < 256 || width > 1568 || height > 1568 || width * height < 78_400 || width * height > 2_458_624) throw new Error('Invalid Jev decision image dimensions');
+  } else if (width < 1 || height < 1 || width > 2048 || height > 2048 || width * height > 2_000_000) throw new Error('Invalid decision image dimensions');
+  return [...images];
+}
+export async function decide(profile: ModelProfile, key: string, request: DecisionRequest, signal?: AbortSignal, beforeSend?: () => void, options: ProviderRuntimeOptions = {}): Promise<DecisionResponse> {
   if(!request.actions.length || request.actions.length>1000) throw new Error('Invalid candidate count');
+  if(request.images !== undefined && !supportsDecisionImages(profile)) throw new Error('This model does not support visual decisions');
+  const systemone=profile.provider.endsWith('systemone');
+  const images=inlineDecisionImages(request.images,!systemone);
   if(!key || /[\r\n]/.test(key)) throw new Error('Invalid API key');
   if(/^(?:sk-)?bag_/.test(key.trim()) && !isBambooNodeProvider(profile.provider)) throw new Error('BambooNode application credentials require a fixed BambooNode provider');
   if(isBambooNodeProvider(profile.provider) && !BAMBOONODE_MODELS[profile.provider].includes(profile.model)) throw new Error('Unsupported BambooNode model');
   if(profile.provider.startsWith('custom-') && !('WebSocketPair' in globalThis)) throw new Error('Custom providers must run through the Cloudflare match service');
   const requestSignal=signal?AbortSignal.any([signal,AbortSignal.timeout(120000)]):AbortSignal.timeout(120000);
-  const endpoint=await validateEndpoint(profile.endpoint,profile.provider,{signal:requestSignal});
+  const endpoint=await validateEndpoint(profile.endpoint,profile.provider,{signal:requestSignal,localEndpoints:options.localEndpoints});
   const criteria=Object.fromEntries(request.actions.map((a,i)=>[`m${i}`,a.label]));
   const payload:Record<string,unknown>={state:request.state, questions:{primary_move:{type:'choice',instructions:request.instructions,criteria}}};
+  if(images) {
+    if(systemone) payload.images=images;
+    else {
+      // Decisions media are top-level state parts. A top-level images property
+      // is rejected by OpenRouter; keep the complete structured state as text.
+      let text: string | undefined;
+      try { text=JSON.stringify(request.state); } catch { throw new Error('Invalid structured state for visual decision'); }
+      if(text === undefined) throw new Error('Invalid structured state for visual decision');
+      payload.state=[text,...images.map(url=>({type:'image_url',image_url:{url}}))];
+    }
+  }
   if(profile.model) payload.model=profile.model;
-  if(profile.provider.endsWith('systemone')) {
+  if(systemone) {
+    // Game turns require a listed legal action, even when the service allows abstention by default.
+    payload.allow_none=false;
     payload.think_mode=profile.thinkMode??'always'; payload.think_budget=profile.thinkBudget??4096; payload.return_details=true;
     payload.return_thought=payload.think_mode!=='never';
   }

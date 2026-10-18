@@ -64,7 +64,7 @@ export const ReplayTimeline = memo(function ReplayTimeline({
                     {marker.runIndex !== undefined
                       ? `${a(marker.runIndex === 0 ? 'left' : 'right')} · `
                       : ''}
-                    {a(`event.${marker.kind}`)}
+                    {marker.decisionStage ? a(`tetris.stage.${marker.decisionStage}`) : a(`event.${marker.kind}`)}
                   </strong>
                   <small>
                     {marker.kind === 'input'

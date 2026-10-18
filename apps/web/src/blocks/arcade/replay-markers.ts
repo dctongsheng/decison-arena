@@ -1,4 +1,4 @@
-import type { ArcadeButton, ArcadeReplayV2 } from '@decision-arena/core';
+import type { ArcadeButton, ArcadeReplayV2, TetrisDecisionStage } from '@decision-arena/core';
 
 export interface ReplayMarker {
   id: string;
@@ -19,6 +19,7 @@ export interface ReplayMarker {
   outcome?: 'applied' | 'dropped' | 'failed' | 'unknown';
   elapsedMs?: number;
   actualModel?: string;
+  decisionStage?: TetrisDecisionStage;
   reason?: string;
 }
 const REASONS = new Set([
@@ -70,6 +71,8 @@ export function arcadeReplayMarkers(replay: ArcadeReplayV2): ReplayMarker[] {
       );
     }
     if (event.type === 'decision') {
+      if (replay.gameId === 'tetris' && (event.decisionStage === 'target' || event.decisionStage === 'key'))
+        marker.decisionStage = event.decisionStage;
       if (
         event.outcome &&
         ['applied', 'dropped', 'failed', 'unknown'].includes(event.outcome)

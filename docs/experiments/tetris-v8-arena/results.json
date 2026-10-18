@@ -1,0 +1,1225 @@
+{
+  "schema": "arena-tetris-v8-published-summary-v1",
+  "date": "2026-10-18",
+  "protocol": "protocol.md",
+  "requestedModel": "startlux-decision-27b-autothink",
+  "actualModels": [
+    "startlux-decision-27b-autothink"
+  ],
+  "thinkMode": "never",
+  "rulesVersion": "tetris-realtime-v1",
+  "timeLimitSeconds": 120,
+  "callCapPerRun": 300,
+  "minDispatchIntervalMs": 500,
+  "sourceManifest": {
+    "files": [
+      {
+        "path": "apps/runner/src/arcade-scheduling.ts",
+        "sha256": "e7fd82616096928a61cee8ce68351649f7692638300daca027820ed161ca5b4b"
+      },
+      {
+        "path": "apps/runner/src/arcade.ts",
+        "sha256": "e63160336e4e37c975cc2c868dc3b412c024c9eb49c73434f5e2e5b107d18898"
+      },
+      {
+        "path": "apps/runner/src/index.ts",
+        "sha256": "c06e2866a6b6eccf7070c3d72dd0dd1cdd175dd9438095f263a744ab467da71e"
+      },
+      {
+        "path": "apps/runner/src/local-provider-policy.ts",
+        "sha256": "1451d5882ac58cd02dc5b94722fca06c7de3f5d086103eee86ef946d9054f297"
+      },
+      {
+        "path": "apps/runner/src/tetris-planning.ts",
+        "sha256": "27e4de00fd95c9c42bdb35bec6351228ba507ddc069f28e6a128604919931e0f"
+      },
+      {
+        "path": "apps/web/src/core/arena/validation.ts",
+        "sha256": "a391f9de4a07dfd74d2ce8997fd38404947ba35738fed434e305630e9d6e9a66"
+      },
+      {
+        "path": "apps/web/src/modules/arena/service.ts",
+        "sha256": "bf8caf70186def532f1eff534cad6f351c3a983f3eab4e2f3b6d3eab8b02f398"
+      },
+      {
+        "path": "packages/core/src/arcade.ts",
+        "sha256": "c49c1aade47d59a11ac099944bf2d38168fdb54328389dcbba347a125dcb2c64"
+      },
+      {
+        "path": "packages/core/src/index.ts",
+        "sha256": "7f73d3f23392e12f9f508818f8a5643b4020ddcd4ac225c791537de1b8b3266d"
+      },
+      {
+        "path": "packages/games/src/arcade/common.ts",
+        "sha256": "887e8d7628c59d5ec026bab4bae4cb82525e2b60741d80532299a193e265c1fe"
+      },
+      {
+        "path": "packages/games/src/arcade/decision.ts",
+        "sha256": "945b683bcff1fc54819eb18f2f5251d09af7f888484a5dbe19831c29be6e9cf5"
+      },
+      {
+        "path": "packages/games/src/arcade/tetris-harness.ts",
+        "sha256": "16b11b430028054fe7a7d1bd66911d9126833580b04cb3d872aa1681ccdcc465"
+      },
+      {
+        "path": "packages/games/src/arcade/tetris-vision.ts",
+        "sha256": "a365e378449e1c199a1aca1092c86fe8e84682bff6c99a78c3fb8987e8c30e8e"
+      },
+      {
+        "path": "packages/games/src/arcade/tetris.ts",
+        "sha256": "0d213daa556978998d2d3a3ee994ca2647ba27bfc18b27420052bd9885089285"
+      },
+      {
+        "path": "packages/providers/src/index.ts",
+        "sha256": "3c20529c10a61d6a4f38feb52cac48fbba15fc3595c549297c8c07327c45d1e1"
+      },
+      {
+        "path": "scripts/snake-harness-experiment-lib.mjs",
+        "sha256": "7c6ae6dcda517ed9d79a805fa7d9cd0bfd5ab9707db348c68507e7faae9ef261"
+      },
+      {
+        "path": "scripts/tetris-v8-experiment.mjs",
+        "sha256": "f9e3e12bd1cdf5170ab2266ddf94cb38be689c256ee8fdf84d371ae2ace37535"
+      }
+    ],
+    "sha256": "2dc0525544888a2ceb311fefd7c6a3bdfd90aa3d6b18a6208e87de4cd72fc506"
+  },
+  "reportHashes": {
+    "pilot": "2dac47c36d8f640621db8df95f429fe013f37134524d407dededab03e2559bf7",
+    "acceptance": "07ded2b0478468f3f5a069506403f7c76b60d0c6bbdf44ce472a7de66c3b26d9"
+  },
+  "totalCalls": 801,
+  "budgetCeiling": 4800,
+  "entries": [
+    {
+      "id": "pilot-1-A",
+      "seed": "arena-v8-pilot-20261018-01",
+      "variant": "A",
+      "partition": "development",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-f5c64d69-732d-498d-b92b-3cba9555d37f",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 353
+      },
+      "reason": "TOP_OUT",
+      "calls": 12,
+      "stages": {
+        "target": 0,
+        "key": 12
+      },
+      "outcomes": {
+        "applied": 11,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 12,
+        "median": 148,
+        "p95": 160.45
+      },
+      "observedToReturnedTicks": {
+        "n": 12,
+        "median": 9,
+        "p95": 10
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 29606,
+      "replayCheck": {
+        "checkedFrames": 18,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "pilot-1-V8",
+      "seed": "arena-v8-pilot-20261018-01",
+      "variant": "V8",
+      "partition": "development",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-fec64e21-4236-4d31-b060-1f1b7bd83f08",
+      "score": {
+        "lines": 4,
+        "points": 400,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 76,
+      "stages": {
+        "target": 20,
+        "key": 56
+      },
+      "outcomes": {
+        "applied": 75,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 76,
+        "median": 1211,
+        "p95": 2513.5
+      },
+      "observedToReturnedTicks": {
+        "n": 76,
+        "median": 73,
+        "p95": 151.75
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 76,
+      "inputTokensReported": 2242992,
+      "replayCheck": {
+        "checkedFrames": 192,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-1-A",
+      "seed": "arena-v8-final-20261018-101",
+      "variant": "A",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-a37afa16-1f41-449c-9e87-c36b85945f96",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 354
+      },
+      "reason": "TOP_OUT",
+      "calls": 12,
+      "stages": {
+        "target": 0,
+        "key": 12
+      },
+      "outcomes": {
+        "applied": 12,
+        "dropped": 0,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 12,
+        "median": 149.5,
+        "p95": 161.89999999999998
+      },
+      "observedToReturnedTicks": {
+        "n": 12,
+        "median": 9,
+        "p95": 10
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 29562,
+      "replayCheck": {
+        "checkedFrames": 19,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-1-V8",
+      "seed": "arena-v8-final-20261018-101",
+      "variant": "V8",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-06e5d46c-8bdb-4375-8bc6-3f412721bc15",
+      "score": {
+        "lines": 1,
+        "points": 100,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 78,
+      "stages": {
+        "target": 21,
+        "key": 57
+      },
+      "outcomes": {
+        "applied": 75,
+        "dropped": 3,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 78,
+        "median": 1183,
+        "p95": 2473.75
+      },
+      "observedToReturnedTicks": {
+        "n": 78,
+        "median": 71.5,
+        "p95": 149.14999999999998
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 78,
+      "inputTokensReported": 2297058,
+      "replayCheck": {
+        "checkedFrames": 195,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-2-V8",
+      "seed": "arena-v8-final-20261018-203",
+      "variant": "V8",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-57000685-e36a-43d6-bf17-f8a5a3f3b6d1",
+      "score": {
+        "lines": 2,
+        "points": 200,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 78,
+      "stages": {
+        "target": 20,
+        "key": 58
+      },
+      "outcomes": {
+        "applied": 77,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 78,
+        "median": 1186.5,
+        "p95": 2484.35
+      },
+      "observedToReturnedTicks": {
+        "n": 78,
+        "median": 72,
+        "p95": 150
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 78,
+      "inputTokensReported": 2263561,
+      "replayCheck": {
+        "checkedFrames": 192,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-2-A",
+      "seed": "arena-v8-final-20261018-203",
+      "variant": "A",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-1ca8e591-1925-4e45-b180-188054c0f7c3",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 352
+      },
+      "reason": "TOP_OUT",
+      "calls": 12,
+      "stages": {
+        "target": 0,
+        "key": 12
+      },
+      "outcomes": {
+        "applied": 11,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 12,
+        "median": 144.5,
+        "p95": 160.45
+      },
+      "observedToReturnedTicks": {
+        "n": 12,
+        "median": 9,
+        "p95": 10
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 29599,
+      "replayCheck": {
+        "checkedFrames": 18,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-3-A",
+      "seed": "arena-v8-final-20261018-307",
+      "variant": "A",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-5248c039-39ac-40ea-a5bf-d0cc97a91d81",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 2030
+      },
+      "reason": "TOP_OUT",
+      "calls": 66,
+      "stages": {
+        "target": 0,
+        "key": 66
+      },
+      "outcomes": {
+        "applied": 65,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 66,
+        "median": 172,
+        "p95": 177.75
+      },
+      "observedToReturnedTicks": {
+        "n": 66,
+        "median": 11,
+        "p95": 11
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 188700,
+      "replayCheck": {
+        "checkedFrames": 100,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-3-V8",
+      "seed": "arena-v8-final-20261018-307",
+      "variant": "V8",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-7601adf3-ba2e-4597-b0b0-6b88a39432a5",
+      "score": {
+        "lines": 5,
+        "points": 500,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 76,
+      "stages": {
+        "target": 20,
+        "key": 56
+      },
+      "outcomes": {
+        "applied": 74,
+        "dropped": 2,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 76,
+        "median": 1208,
+        "p95": 2523
+      },
+      "observedToReturnedTicks": {
+        "n": 76,
+        "median": 73,
+        "p95": 152
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 76,
+      "inputTokensReported": 2258374,
+      "replayCheck": {
+        "checkedFrames": 194,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-4-V8",
+      "seed": "arena-v8-final-20261018-409",
+      "variant": "V8",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-6f6b6e38-0601-4dc5-ad7b-2c46675efe4b",
+      "score": {
+        "lines": 3,
+        "points": 300,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 77,
+      "stages": {
+        "target": 21,
+        "key": 56
+      },
+      "outcomes": {
+        "applied": 76,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 77,
+        "median": 1193,
+        "p95": 2491.2
+      },
+      "observedToReturnedTicks": {
+        "n": 77,
+        "median": 72,
+        "p95": 150
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 77,
+      "inputTokensReported": 2293986,
+      "replayCheck": {
+        "checkedFrames": 194,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-4-A",
+      "seed": "arena-v8-final-20261018-409",
+      "variant": "A",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-562e6602-1633-4bcd-a0ae-0ef478131a34",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 820
+      },
+      "reason": "TOP_OUT",
+      "calls": 27,
+      "stages": {
+        "target": 0,
+        "key": 27
+      },
+      "outcomes": {
+        "applied": 27,
+        "dropped": 0,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 27,
+        "median": 166,
+        "p95": 179.7
+      },
+      "observedToReturnedTicks": {
+        "n": 27,
+        "median": 10,
+        "p95": 11
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 73074,
+      "replayCheck": {
+        "checkedFrames": 42,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-5-A",
+      "seed": "arena-v8-final-20261018-503",
+      "variant": "A",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-dc56d014-aac4-4645-9ca3-32118cff31dc",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 880
+      },
+      "reason": "TOP_OUT",
+      "calls": 29,
+      "stages": {
+        "target": 0,
+        "key": 29
+      },
+      "outcomes": {
+        "applied": 28,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 29,
+        "median": 165,
+        "p95": 177.2
+      },
+      "observedToReturnedTicks": {
+        "n": 29,
+        "median": 10,
+        "p95": 11
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 78854,
+      "replayCheck": {
+        "checkedFrames": 43,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-5-V8",
+      "seed": "arena-v8-final-20261018-503",
+      "variant": "V8",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-e06274f9-1a2f-4f11-a1fe-96f09c6fd3c0",
+      "score": {
+        "lines": 4,
+        "points": 400,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 76,
+      "stages": {
+        "target": 20,
+        "key": 56
+      },
+      "outcomes": {
+        "applied": 75,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 76,
+        "median": 1215,
+        "p95": 2564.75
+      },
+      "observedToReturnedTicks": {
+        "n": 76,
+        "median": 74,
+        "p95": 154.25
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 76,
+      "inputTokensReported": 2260438,
+      "replayCheck": {
+        "checkedFrames": 195,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-6-V8",
+      "seed": "arena-v8-final-20261018-607",
+      "variant": "V8",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-020fe5ef-4ae3-441e-8985-ca27097dcc56",
+      "score": {
+        "lines": 5,
+        "points": 600,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 76,
+      "stages": {
+        "target": 20,
+        "key": 56
+      },
+      "outcomes": {
+        "applied": 75,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 76,
+        "median": 1207.5,
+        "p95": 2514
+      },
+      "observedToReturnedTicks": {
+        "n": 76,
+        "median": 73,
+        "p95": 152
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 76,
+      "inputTokensReported": 2257633,
+      "replayCheck": {
+        "checkedFrames": 193,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-6-A",
+      "seed": "arena-v8-final-20261018-607",
+      "variant": "A",
+      "partition": "acceptance",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-269e87c1-9a31-48b8-92f6-c3d6800f90dc",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 478
+      },
+      "reason": "TOP_OUT",
+      "calls": 16,
+      "stages": {
+        "target": 0,
+        "key": 16
+      },
+      "outcomes": {
+        "applied": 16,
+        "dropped": 0,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 16,
+        "median": 155,
+        "p95": 167.25
+      },
+      "observedToReturnedTicks": {
+        "n": 16,
+        "median": 10,
+        "p95": 10
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 40572,
+      "replayCheck": {
+        "checkedFrames": 25,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-7-V8",
+      "seed": "arena-v8-final-20261018-101",
+      "variant": "V8",
+      "partition": "repeat",
+      "harnessVersion": "tetris-harness-v8-realtime-v1",
+      "sessionId": "arcade-28673bfc-c454-4696-bc67-f4d5bbdf32b1",
+      "score": {
+        "lines": 4,
+        "points": 400,
+        "survivedTicks": 7200
+      },
+      "reason": "TIME_LIMIT",
+      "calls": 78,
+      "stages": {
+        "target": 20,
+        "key": 58
+      },
+      "outcomes": {
+        "applied": 77,
+        "dropped": 1,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 78,
+        "median": 1198,
+        "p95": 2478.6
+      },
+      "observedToReturnedTicks": {
+        "n": 78,
+        "median": 72,
+        "p95": 149.14999999999998
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 78,
+      "inputTokensReported": 2250230,
+      "replayCheck": {
+        "checkedFrames": 195,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    },
+    {
+      "id": "acceptance-7-A",
+      "seed": "arena-v8-final-20261018-101",
+      "variant": "A",
+      "partition": "repeat",
+      "harnessVersion": "tetris-harness-baseline-v1",
+      "sessionId": "arcade-028c8387-719b-4af7-aeca-1d6330dcef47",
+      "score": {
+        "lines": 0,
+        "points": 0,
+        "survivedTicks": 355
+      },
+      "reason": "TOP_OUT",
+      "calls": 12,
+      "stages": {
+        "target": 0,
+        "key": 12
+      },
+      "outcomes": {
+        "applied": 12,
+        "dropped": 0,
+        "failed": 0,
+        "unknown": 0
+      },
+      "latencyMs": {
+        "n": 12,
+        "median": 146.5,
+        "p95": 163
+      },
+      "observedToReturnedTicks": {
+        "n": 12,
+        "median": 9,
+        "p95": 10
+      },
+      "actualModels": [
+        "startlux-decision-27b-autothink"
+      ],
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0,
+      "imageReceipts": 0,
+      "inputTokensReported": 29562,
+      "replayCheck": {
+        "checkedFrames": 19,
+        "scoreAgreement": true,
+        "inputActionAgreement": true,
+        "targetNeverExecutesInput": true
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "seed": "arena-v8-pilot-20261018-01",
+      "partition": "development",
+      "valid": true,
+      "linesDelta": 4,
+      "pointsDelta": 400,
+      "nativeComparison": 1
+    },
+    {
+      "seed": "arena-v8-final-20261018-101",
+      "partition": "acceptance",
+      "valid": true,
+      "linesDelta": 1,
+      "pointsDelta": 100,
+      "nativeComparison": 1
+    },
+    {
+      "seed": "arena-v8-final-20261018-203",
+      "partition": "acceptance",
+      "valid": true,
+      "linesDelta": 2,
+      "pointsDelta": 200,
+      "nativeComparison": 1
+    },
+    {
+      "seed": "arena-v8-final-20261018-307",
+      "partition": "acceptance",
+      "valid": true,
+      "linesDelta": 5,
+      "pointsDelta": 500,
+      "nativeComparison": 1
+    },
+    {
+      "seed": "arena-v8-final-20261018-409",
+      "partition": "acceptance",
+      "valid": true,
+      "linesDelta": 3,
+      "pointsDelta": 300,
+      "nativeComparison": 1
+    },
+    {
+      "seed": "arena-v8-final-20261018-503",
+      "partition": "acceptance",
+      "valid": true,
+      "linesDelta": 4,
+      "pointsDelta": 400,
+      "nativeComparison": 1
+    },
+    {
+      "seed": "arena-v8-final-20261018-607",
+      "partition": "acceptance",
+      "valid": true,
+      "linesDelta": 5,
+      "pointsDelta": 600,
+      "nativeComparison": 1
+    },
+    {
+      "seed": "arena-v8-final-20261018-101",
+      "partition": "repeat",
+      "valid": true,
+      "linesDelta": 4,
+      "pointsDelta": 400,
+      "nativeComparison": 1
+    }
+  ],
+  "aggregates": [
+    {
+      "partition": "development",
+      "variant": "A",
+      "games": 1,
+      "meanLines": 0,
+      "meanPoints": 0,
+      "meanSurvivedSeconds": 5.883333333333334,
+      "calls": 12,
+      "targetCalls": 0,
+      "keyCalls": 12,
+      "applied": 11,
+      "dropped": 1,
+      "failed": 0,
+      "unknown": 0,
+      "latencyMs": {
+        "n": 12,
+        "median": 148,
+        "p95": 160.45
+      },
+      "targetLatencyMs": {
+        "n": 0,
+        "median": null,
+        "p95": null
+      },
+      "keyLatencyMs": {
+        "n": 12,
+        "median": 148,
+        "p95": 160.45
+      },
+      "observedToSettledTicks": {
+        "n": 12,
+        "median": 9,
+        "p95": 10
+      },
+      "observedToAppliedTicks": {
+        "n": 11,
+        "median": 10,
+        "p95": 11
+      },
+      "inputTokensReported": 29606,
+      "outputTokensReported": 0,
+      "imageReceipts": 0,
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0
+    },
+    {
+      "partition": "development",
+      "variant": "V8",
+      "games": 1,
+      "meanLines": 4,
+      "meanPoints": 400,
+      "meanSurvivedSeconds": 120,
+      "calls": 76,
+      "targetCalls": 20,
+      "keyCalls": 56,
+      "applied": 75,
+      "dropped": 1,
+      "failed": 0,
+      "unknown": 0,
+      "latencyMs": {
+        "n": 76,
+        "median": 1211,
+        "p95": 2513.5
+      },
+      "targetLatencyMs": {
+        "n": 20,
+        "median": 2460,
+        "p95": 2561.5499999999997
+      },
+      "keyLatencyMs": {
+        "n": 56,
+        "median": 1191.5,
+        "p95": 1267
+      },
+      "observedToSettledTicks": {
+        "n": 76,
+        "median": 73,
+        "p95": 151.75
+      },
+      "observedToAppliedTicks": {
+        "n": 55,
+        "median": 73,
+        "p95": 78
+      },
+      "inputTokensReported": 2242992,
+      "outputTokensReported": 0,
+      "imageReceipts": 76,
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0
+    },
+    {
+      "partition": "acceptance",
+      "variant": "A",
+      "games": 6,
+      "meanLines": 0,
+      "meanPoints": 0,
+      "meanSurvivedSeconds": 13.65,
+      "calls": 162,
+      "targetCalls": 0,
+      "keyCalls": 162,
+      "applied": 159,
+      "dropped": 3,
+      "failed": 0,
+      "unknown": 0,
+      "latencyMs": {
+        "n": 162,
+        "median": 165.5,
+        "p95": 178
+      },
+      "targetLatencyMs": {
+        "n": 0,
+        "median": null,
+        "p95": null
+      },
+      "keyLatencyMs": {
+        "n": 162,
+        "median": 165.5,
+        "p95": 178
+      },
+      "observedToSettledTicks": {
+        "n": 162,
+        "median": 10,
+        "p95": 11
+      },
+      "observedToAppliedTicks": {
+        "n": 159,
+        "median": 11,
+        "p95": 12
+      },
+      "inputTokensReported": 440361,
+      "outputTokensReported": 0,
+      "imageReceipts": 0,
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0
+    },
+    {
+      "partition": "acceptance",
+      "variant": "V8",
+      "games": 6,
+      "meanLines": 3.3333333333333335,
+      "meanPoints": 350,
+      "meanSurvivedSeconds": 120,
+      "calls": 461,
+      "targetCalls": 122,
+      "keyCalls": 339,
+      "applied": 452,
+      "dropped": 9,
+      "failed": 0,
+      "unknown": 0,
+      "latencyMs": {
+        "n": 461,
+        "median": 1203,
+        "p95": 2510
+      },
+      "targetLatencyMs": {
+        "n": 122,
+        "median": 2470,
+        "p95": 2566.8500000000004
+      },
+      "keyLatencyMs": {
+        "n": 339,
+        "median": 1190,
+        "p95": 1226.2
+      },
+      "observedToSettledTicks": {
+        "n": 461,
+        "median": 73,
+        "p95": 152
+      },
+      "observedToAppliedTicks": {
+        "n": 332,
+        "median": 73,
+        "p95": 75
+      },
+      "inputTokensReported": 13631050,
+      "outputTokensReported": 0,
+      "imageReceipts": 461,
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0
+    },
+    {
+      "partition": "repeat",
+      "variant": "A",
+      "games": 1,
+      "meanLines": 0,
+      "meanPoints": 0,
+      "meanSurvivedSeconds": 5.916666666666667,
+      "calls": 12,
+      "targetCalls": 0,
+      "keyCalls": 12,
+      "applied": 12,
+      "dropped": 0,
+      "failed": 0,
+      "unknown": 0,
+      "latencyMs": {
+        "n": 12,
+        "median": 146.5,
+        "p95": 163
+      },
+      "targetLatencyMs": {
+        "n": 0,
+        "median": null,
+        "p95": null
+      },
+      "keyLatencyMs": {
+        "n": 12,
+        "median": 146.5,
+        "p95": 163
+      },
+      "observedToSettledTicks": {
+        "n": 12,
+        "median": 9,
+        "p95": 10
+      },
+      "observedToAppliedTicks": {
+        "n": 12,
+        "median": 10,
+        "p95": 11
+      },
+      "inputTokensReported": 29562,
+      "outputTokensReported": 0,
+      "imageReceipts": 0,
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0
+    },
+    {
+      "partition": "repeat",
+      "variant": "V8",
+      "games": 1,
+      "meanLines": 4,
+      "meanPoints": 400,
+      "meanSurvivedSeconds": 120,
+      "calls": 78,
+      "targetCalls": 20,
+      "keyCalls": 58,
+      "applied": 77,
+      "dropped": 1,
+      "failed": 0,
+      "unknown": 0,
+      "latencyMs": {
+        "n": 78,
+        "median": 1198,
+        "p95": 2478.6
+      },
+      "targetLatencyMs": {
+        "n": 20,
+        "median": 2422.5,
+        "p95": 2542
+      },
+      "keyLatencyMs": {
+        "n": 58,
+        "median": 1179,
+        "p95": 1263.5
+      },
+      "observedToSettledTicks": {
+        "n": 78,
+        "median": 72,
+        "p95": 149.14999999999998
+      },
+      "observedToAppliedTicks": {
+        "n": 58,
+        "median": 73,
+        "p95": 77.44999999999999
+      },
+      "inputTokensReported": 2250230,
+      "outputTokensReported": 0,
+      "imageReceipts": 78,
+      "thoughtUsedTrue": 0,
+      "thoughtUnreported": 0
+    }
+  ],
+  "acceptance": {
+    "independentPairs": 6,
+    "wins": 6,
+    "ties": 0,
+    "losses": 0,
+    "meanPairedLines": 3.3333333333333335,
+    "provisionalThresholdPassed": true,
+    "defaultPromoted": false
+  },
+  "replayVerification": {
+    "games": 16,
+    "checkedFrames": 1834,
+    "allScoresMatch": true,
+    "allInputsMatchModelChoice": true,
+    "targetsNeverExecuteInput": true
+  },
+  "limitations": [
+    "Six predefined distinct seeds and one repeat, not a representative large benchmark.",
+    "One existing StartLux profile; no Jev V8 capability claim.",
+    "Equal native time/call ceilings, not equal actual calls, token usage or money spent.",
+    "Returned tick means runner settlement, not independent HTTP arrival time.",
+    "Image transport is verified; upstream visual use is not identifiable.",
+    "Combined Harness comparison does not isolate images, goal prompt, state representation or latency."
+  ]
+}

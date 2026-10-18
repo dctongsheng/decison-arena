@@ -21,6 +21,8 @@ import {
 } from './replay-markers';
 import { ReplayTimeline } from './replay-timeline';
 import { ScoreBreakdown } from './score';
+import { displayedTetrisVersion, replayTetrisDecision, replayTetrisGoal, TETRIS_V8 } from './tetris-harness';
+import { TetrisHarnessNotice, TetrisPlanningPanel } from './tetris-planning';
 
 import './arcade.css';
 
@@ -83,6 +85,7 @@ export function ArcadeReplayPlayer({ replay }: { replay: ArcadeReplayV2 }) {
           {(tick / 60).toFixed(1)} / {(reader.lastTick / 60).toFixed(1)} s
         </code>
       </div>
+      {replay.gameId === 'tetris' && <TetrisHarnessNotice config={replay.config} />}
       <div
         className={
           views.length === 1
@@ -106,6 +109,11 @@ export function ArcadeReplayPlayer({ replay }: { replay: ArcadeReplayV2 }) {
               view={view}
               label={`${a(views.length === 1 ? 'single_lane' : index === 0 ? 'left' : 'right')} ${a(`game.${replay.gameId}`)}`}
             />
+            {replay.gameId === 'tetris' && displayedTetrisVersion(replay.config) === TETRIS_V8 && replay.controllers[index]?.kind === 'ai' && (
+              <TetrisPlanningPanel view={view}
+                goal={replayTetrisGoal(replay.events, replay.runIds[index], tick, view)}
+                lastDecision={replayTetrisDecision(replay.events, replay.runIds[index], tick)} />
+            )}
           </div>
         ))}
       </div>

@@ -44,8 +44,35 @@ export function tetrisCells(piece: FallingPiece): ArcadePoint[] {
     return { x: piece.x + x, y: piece.y + y };
   });
 }
-function fits(s: TetrisState, piece: FallingPiece): boolean {
-  return tetrisCells(piece).every(p => p.x >= 0 && p.x < 10 && p.y >= -2 && p.y < 20 && s.board[(p.y + 2) * 10 + p.x] === 0);
+/** Shared native geometry; no clock, controls, queue or random state is consulted. */
+export function tetrisPoseFits(board: readonly number[], piece: FallingPiece): boolean {
+  return tetrisCells(piece).every(p => p.x >= 0 && p.x < 10 && p.y >= -2 && p.y < 20 && board[(p.y + 2) * 10 + p.x] === 0);
+}
+function fits(s: TetrisState, piece: FallingPiece): boolean { return tetrisPoseFits(s.board, piece); }
+
+/** The exact lock/clear/scoring operation shared by live play and conditional projections.
+ * This does not spawn the next piece; topOut concerns remaining hidden-row cells only. */
+export function tetrisLockGeometry(board: readonly number[], piece: FallingPiece, linesBefore: number) {
+  const locked = [...board], color = TETROMINOES.indexOf(piece.type) + 1;
+  for (const p of tetrisCells(piece)) locked[(p.y + 2) * 10 + p.x] = color;
+  const rows: number[][] = [];
+  let cleared = 0;
+  for (let y = 0; y < 22; y++) {
+    const row = locked.slice(y * 10, y * 10 + 10);
+    if (row.every(Boolean)) cleared++; else rows.push(row);
+  }
+  while (rows.length < 22) rows.unshift(Array<number>(10).fill(0));
+  const result = rows.flat();
+  return { board: result, linesCleared: cleared,
+    pointsDelta: ([0, 100, 300, 500, 800][cleared] ?? 0) * (Math.floor(linesBefore / 10) + 1),
+    topOut: result.slice(0, 20).some(Boolean) };
+}
+/** Assume this pose already exists, then drop vertically. NOT a native-input reachability test. */
+export function tetrisConditionalHardDrop(board: readonly number[], piece: FallingPiece, linesBefore: number) {
+  if (!tetrisPoseFits(board, piece)) return null;
+  const landed = { ...piece };
+  while (tetrisPoseFits(board, { ...landed, y: landed.y + 1 })) landed.y++;
+  return { piece: landed, cells: tetrisCells(landed), ...tetrisLockGeometry(board, landed, linesBefore) };
 }
 function grounded(s: TetrisState): boolean { return !!s.active && !fits(s, { ...s.active, y: s.active.y + 1 }); }
 function fillQueue(s: TetrisState): void {
@@ -63,21 +90,12 @@ function spawn(s: TetrisState, type?: Tetromino): void {
 }
 function lock(s: TetrisState): void {
   if (!s.active) return;
-  const color = TETROMINOES.indexOf(s.active.type) + 1;
-  for (const p of tetrisCells(s.active)) s.board[(p.y + 2) * 10 + p.x] = color;
-  const rows: number[][] = [];
-  let cleared = 0;
-  for (let y = 0; y < 22; y++) {
-    const row = s.board.slice(y * 10, y * 10 + 10);
-    if (row.every(Boolean)) cleared++; else rows.push(row);
-  }
-  while (rows.length < 22) rows.unshift(Array<number>(10).fill(0));
-  s.board = rows.flat();
-  const level = Math.floor((s.score.lines ?? 0) / 10) + 1;
-  s.score.lines = (s.score.lines ?? 0) + cleared;
-  s.score.points += ([0, 100, 300, 500, 800][cleared] ?? 0) * level;
+  const result = tetrisLockGeometry(s.board, s.active, s.score.lines ?? 0);
+  s.board = result.board;
+  s.score.lines = (s.score.lines ?? 0) + result.linesCleared;
+  s.score.points += result.pointsDelta;
   s.holdUsed = false; s.active = null;
-  if (s.board.slice(0, 20).some(Boolean)) { finish(s, 'TOP_OUT'); return; }
+  if (result.topOut) { finish(s, 'TOP_OUT'); return; }
   spawn(s);
 }
 function resetLock(s: TetrisState, wasGrounded: boolean): void {
@@ -178,7 +196,7 @@ export const tetris: ArcadeAdapter = {
     const s = state as TetrisState;
     return { gameId: 'tetris', tick: s.tick, status: s.status, score: { ...s.score }, width: 10, height: 20,
       currentButtons: [...s.held], reason: s.reason, cells: s.board.slice(20),
-      active: s.active ? { type: s.active.type, cells: tetrisCells(s.active) } : undefined,
+      active: s.active ? { type: s.active.type, rotation: s.active.rotation, cells: tetrisCells(s.active) } : undefined,
       next: s.next.slice(0, 5), hold: s.hold, pieceId: s.pieceId };
   },
   restore(value) {

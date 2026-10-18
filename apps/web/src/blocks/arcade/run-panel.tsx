@@ -4,6 +4,7 @@ import type {
   ArcadeInput,
   ArcadeRunSnapshot,
   ArcadeStatus,
+  TetrisHarnessVersion,
 } from '@decision-arena/core';
 import {
   Archive,
@@ -23,6 +24,8 @@ import { arcadeButtons, isTypingTarget, keyButton } from './input';
 import { a } from './messages';
 import type { LocalArcadeInput } from './render-state';
 import { arcadeReason } from './score';
+import { TETRIS_V8 } from './tetris-harness';
+import { TetrisPlanningPanel } from './tetris-planning';
 
 export function RunPanel({
   run,
@@ -32,6 +35,7 @@ export function RunPanel({
   enabled = false,
   onInput,
   onPause,
+  tetrisHarnessVersion,
 }: {
   run: ArcadeRunSnapshot;
   index: number;
@@ -40,6 +44,7 @@ export function RunPanel({
   enabled?: boolean;
   onInput?: (input: ArcadeInput) => boolean;
   onPause?: () => void;
+  tetrisHarnessVersion?: TetrisHarnessVersion;
 }) {
   const [focused, setFocused] = useState(false),
     held = useRef(new Map<string, ArcadeButton>()),
@@ -244,6 +249,9 @@ export function RunPanel({
           </span>
         )}
       </div>
+      {run.view.gameId === 'tetris' && tetrisHarnessVersion === TETRIS_V8 && run.controller.kind === 'ai' && (
+        <TetrisPlanningPanel view={run.view} goal={run.tetrisGoal} inflight={run.inflight} lastDecision={run.lastDecision} />
+      )}
       {run.controller.kind === 'human' ? (
         <>
           <p className="arcade-focus-note">

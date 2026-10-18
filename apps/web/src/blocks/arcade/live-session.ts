@@ -19,6 +19,25 @@ import {
   mergeArcadeSnapshot,
 } from './session-state';
 
+/** Local development uses the independent bridge. A public tunnel routes the
+ * same-origin socket path to that bridge, without exposing its loopback port. */
+export function arcadeSocketUrl(
+  origin: string,
+  id: string,
+  options: { development: boolean; port?: string; since?: number }
+) {
+  const url = new URL(
+    `/api/arena/arcade-sessions/${encodeURIComponent(id)}/socket`,
+    origin
+  );
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  if (options.development && loopback) url.port = options.port || '5094';
+  if (Number.isSafeInteger(options.since) && options.since! > 0)
+    url.searchParams.set('since', String(options.since));
+  return url.toString();
+}
+
 export function useArcadeSession(id: string) {
   const { data: identity } = useSession(),
     ownerId = identity?.user.id,
@@ -95,15 +114,12 @@ export function useArcadeSession(id: string) {
         arcadeCompletionState(snapshotRef.current, false).archiveReady
       )
         return;
-      const url = new URL(
-        `/api/arena/arcade-sessions/${encodeURIComponent(id)}/socket`,
-        window.location.origin
-      );
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      if (import.meta.env.DEV) url.port = import.meta.env.VITE_ARCADE_SOCKET_PORT || '5094';
-      const lastEventSeq = snapshotRef.current?.events.at(-1)?.seq;
-      if (lastEventSeq) url.searchParams.set('since', String(lastEventSeq));
-      const ws = new WebSocket(url.toString());
+      const url = arcadeSocketUrl(window.location.origin, id, {
+        development: import.meta.env.DEV,
+        port: import.meta.env.VITE_ARCADE_SOCKET_PORT,
+        since: snapshotRef.current?.events.at(-1)?.seq,
+      });
+      const ws = new WebSocket(url);
       socket.current = ws;
       cancelConnectTimeout = watchArcadeConnection(ws, () => {
         if (!disposed) {

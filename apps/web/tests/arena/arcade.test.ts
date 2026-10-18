@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { eq } from 'drizzle-orm';
-import type { SnakeHarnessVersion } from '@decision-arena/core';
+import type { SnakeHarnessVersion, TetrisHarnessVersion } from '@decision-arena/core';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { publicReplay } from '@/core/arena/public-replay';
 import { createArcadeInput } from '@/core/arena/validation';
@@ -15,6 +15,7 @@ vi.mock('@/core/db', () => ({ db: () => database }));
 const globals = globalThis as typeof globalThis & { __CF_ENV__?: unknown };
 const calls: Request[] = [];
 const snakeHarnessVersions = ['snake-harness-a-v1', 'snake-harness-b-v1', 'snake-harness-c-v1'] as const satisfies readonly SnakeHarnessVersion[];
+const tetrisHarnessVersions = ['tetris-harness-baseline-v1', 'tetris-harness-v8-realtime-v1'] as const satisfies readonly TetrisHarnessVersion[];
 const score = { points: 10, food: 1, survivedTicks: 60 };
 const view = { gameId: 'snake', tick: 60, status: 'finished', score, width: 20, height: 20,
   currentButtons: [], snake: [{ x: 10, y: 10 }], food: { x: 2, y: 2 }, reason: 'wall' };
@@ -82,7 +83,7 @@ describe('arcade activity validation and tenant boundaries', () => {
       expect(createArcadeInput.safeParse({ gameId: 'snake', mode: 'ai-solo', controllers }).success).toBe(false);
   });
   it.each(['snake', 'tetris', 'platformer'])('creates %s with one owned AI profile and rejects a foreign saved selection', async gameId => {
-    const own = await profile();
+    const own = await arena.saveProfile('alice', { name: 'Own model', provider: 'systemone', apiKey: 'fixture-provider-key', thinkMode: 'never' });
     const body = { gameId, mode: 'ai-solo', controllers: [{ kind: 'ai', profileId: own.id }] };
     await expect(arena.createArcadeSession('bob', body)).rejects.toMatchObject({ status: 404 });
     await arena.createArcadeSession('alice', body);
@@ -272,5 +273,152 @@ describe('arcade community replay', () => {
     expect(original.controllers[0].profile?.thinkMode).toBe('always');
     await database.update(arenaPublication).set({ status: 'removed' }).where(eq(arenaPublication.id, post.id));
     await expect(arena.createArcadeSession('bob', { cloneId: post.id, gameId: 'snake', mode: 'ai-ai', controllers: [0, 1].map(() => ({ kind: 'ai', profileId: bob.id })) })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('Tetris V8 frozen web contract', () => {
+  const target = { pieceId: 3, leftmostColumn: 7, rotation: 1 };
+  function tetrisReplay(version?: TetrisHarnessVersion) {
+    const tetrisView = { ...view, gameId: 'tetris', width: 10, height: 20, snake: undefined, food: undefined,
+      cells: Array(200).fill(0), pieceId: 3, active: { type: 'I', rotation: 0, cells: [{ x: 3, y: 2 }] } };
+    return { ...replay, gameId: 'tetris', rulesVersion: 'tetris-v1', config: version ? { tetrisHarnessVersion: version } : {},
+      controllers: replay.controllers.map(controller => ({ ...controller, profile: { ...controller.profile, provider: 'systemone' } })),
+      frames: [{ tick: 60, views: [tetrisView, tetrisView] }],
+      events: version === 'tetris-harness-v8-realtime-v1' ? [{ seq: 1, type: 'decision', tick: 30, settledTick: 30, observedTick: 10, at: 501,
+        runId: 'run-0', pieceId: 3, decisionStage: 'target', tetrisHarnessVersion: version, tetrisGoal: target, outcome: 'applied',
+        actionId: 'target:7:1', promptVersion: 'tetris-harness-v8-realtime-v1',
+        observationImage: { count: 1, sha256: 'a'.repeat(64), width: 300, height: 480 } }] : [] };
+  }
+  it.each(tetrisHarnessVersions)('forwards explicit %s and keeps human practice available', async tetrisHarnessVersion => {
+    const body = { gameId: 'tetris', mode: 'practice', config: { tetrisHarnessVersion }, controllers: [{ kind: 'human' }] };
+    expect(createArcadeInput.parse(body).config).toEqual({ tetrisHarnessVersion });
+    await arena.createArcadeSession('alice', body);
+    expect((await calls.at(-1)!.clone().json()).config).toEqual({ tetrisHarnessVersion });
+  });
+  it.each(['ai-solo', 'human-ai', 'ai-ai'] as const)('defaults new %s sessions to V8 for every AI seat', async mode => {
+    const own = await arena.saveProfile('alice', { name: 'Decision', provider: 'systemone', apiKey: 'fixture-provider-key', thinkMode: 'always' });
+    const kinds = mode === 'ai-solo' ? ['ai'] : mode === 'human-ai' ? ['human', 'ai'] : ['ai', 'ai'];
+    await arena.createArcadeSession('alice', { gameId: 'tetris', mode,
+      controllers: kinds.map(kind => ({ kind, ...(kind === 'ai' ? { profileId: own.id } : {}) })) });
+    const payload = await calls.at(-1)!.clone().json();
+    expect(payload.config).toEqual({ tetrisHarnessVersion: tetrisHarnessVersions[1] });
+    expect(payload.controllers).toHaveLength(kinds.length);
+    for (const seat of payload.controllers.filter((seat: { kind: string }) => seat.kind === 'ai'))
+      expect(seat.profile).toMatchObject({ id: own.id, ownerId: 'alice', thinkMode: 'never' });
+  });
+  it('does not silently fall back when an omitted version selects an incompatible second AI', async () => {
+    const own = await arena.saveProfile('alice', { name: 'Decision', provider: 'systemone', apiKey: 'fixture-provider-key', thinkMode: 'never' });
+    const jev = await profile();
+    const body = { gameId: 'tetris', mode: 'ai-ai', controllers: [own, jev].map(p => ({ kind: 'ai', profileId: p.id })) };
+    await expect(arena.createArcadeSession('alice', body)).rejects.toThrow('verified image support');
+    expect(calls).toHaveLength(0);
+    await arena.createArcadeSession('alice', { ...body, config: { tetrisHarnessVersion: tetrisHarnessVersions[0] } });
+    expect((await calls.at(-1)!.clone().json()).config.tetrisHarnessVersion).toBe(tetrisHarnessVersions[0]);
+  });
+  it('rejects unknown or non-Tetris versions without changing legacy requests', () => {
+    const body = { gameId: 'tetris', mode: 'practice', controllers: [{ kind: 'human' }] };
+    expect(createArcadeInput.parse(body).config).toEqual({});
+    for (const tetrisHarnessVersion of ['v8', 'tetris-harness-v8-realtime-v2', null, 8])
+      expect(createArcadeInput.safeParse({ ...body, config: { tetrisHarnessVersion } }).success).toBe(false);
+    for (const gameId of ['snake', 'platformer'])
+      expect(createArcadeInput.safeParse({ ...body, gameId, config: { tetrisHarnessVersion: tetrisHarnessVersions[1] } }).success).toBe(false);
+  });
+  it('requires owned image-capable models for V8 and keeps thinking disabled', async () => {
+    const jev = await profile('alice');
+    const systemone = await arena.saveProfile('alice', { name: 'Image capable fixture', provider: 'systemone', apiKey: 'fixture-provider-key', thinkMode: 'always' });
+    const body = { gameId: 'tetris', mode: 'ai-solo', config: { tetrisHarnessVersion: tetrisHarnessVersions[1] }, controllers: [{ kind: 'ai', profileId: jev.id }] };
+    await expect(arena.createArcadeSession('alice', body)).rejects.toThrow('verified image support');
+    await expect(arena.createArcadeSession('bob', { ...body, controllers: [{ kind: 'ai', profileId: systemone.id }] })).rejects.toMatchObject({ status: 404 });
+    await arena.createArcadeSession('alice', { ...body, controllers: [{ kind: 'ai', profileId: systemone.id, thinkMode: 'always' }] });
+    expect((await calls.at(-1)!.clone().json()).controllers[0].profile.thinkMode).toBe('never');
+    await expect(arena.createArcadeSession('alice', { ...body, config: { tetrisHarnessVersion: tetrisHarnessVersions[0] } })).resolves.toBeDefined();
+  });
+  it.each(['typesafe/jev-1.13', 'typesafe/jev-1.14'])('defaults mixed %s versus Decision seats to full V8 with owner isolation', async model => {
+    const jev = await arena.saveProfile('alice', { name: 'Jev image fixture', provider: 'openrouter', model, apiKey: 'fixture-provider-key', thinkMode: 'always' });
+    const decision = await arena.saveProfile('alice', { name: 'Decision image fixture', provider: 'systemone', apiKey: 'fixture-provider-key', thinkMode: 'always' });
+    const body = { gameId: 'tetris', mode: 'ai-ai', controllers: [jev, decision].map(p => ({ kind: 'ai', profileId: p.id })) };
+    await expect(arena.createArcadeSession('bob', body)).rejects.toMatchObject({ status: 404 });
+    expect(calls).toHaveLength(0);
+    for (const controllers of [body.controllers, [...body.controllers].reverse()]) {
+      await arena.createArcadeSession('alice', { ...body, controllers, ownerId: 'bob' });
+      const request = calls.at(-1)!;
+      const payload = await request.clone().json();
+      expect(request.headers.get('X-Arena-Owner')).toBe('alice');
+      expect(payload.config).toEqual({ tetrisHarnessVersion: tetrisHarnessVersions[1] });
+      expect(payload.controllers.map((seat: { profile: { id: string } }) => seat.profile.id)).toEqual(controllers.map(c => c.profileId));
+      for (const seat of payload.controllers)
+        expect(seat.profile).toMatchObject({ ownerId: 'alice', thinkMode: 'never' });
+      expect(payload.controllers.find((seat: { profile: { provider: string } }) => seat.profile.provider === 'openrouter').profile.model).toBe(model);
+    }
+  });
+  it('publishes only safe goal, stage and image identity metadata', () => {
+    const source = tetrisReplay(tetrisHarnessVersions[1]);
+    const privateMarker = 'private-tetris-payload';
+    const dirty = { ...source, config: { ...source.config, rawRequest: privateMarker }, predictionState: privateMarker,
+      events: source.events.map(event => ({ ...event, tetrisGoal: { ...target, boardKey: privateMarker },
+        observationImage: { ...event.observationImage, dataUrl: privateMarker, rawBytes: privateMarker },
+        request: privateMarker, rawBody: privateMarker, reasoning: { text: privateMarker, truncated: false } })) };
+    const clean = publicReplay(dirty);
+    if (clean.version !== 2) throw new Error('Expected arcade replay');
+    expect(clean.config.tetrisHarnessVersion).toBe(tetrisHarnessVersions[1]);
+    expect(clean.events[0]).toMatchObject({ decisionStage: 'target', settledTick: 30, pieceId: 3, tetrisGoal: target,
+      observationImage: { count: 1, sha256: 'a'.repeat(64), width: 300, height: 480 } });
+    expect(clean.events[0]).not.toHaveProperty('input');
+    expect(clean.frames[0].views[0].active?.rotation).toBe(0);
+    expect(JSON.stringify(clean)).not.toContain(privateMarker);
+    expect(dirty.events[0].reasoning.text).toBe(privateMarker);
+  });
+  it('rejects unsafe metadata and never interprets target selection as applied input', () => {
+    const source = tetrisReplay(tetrisHarnessVersions[1]);
+    for (const change of [{ decisionStage: 'pathfind' }, { tetrisGoal: { ...target, leftmostColumn: 10 } }, { tetrisGoal: { ...target, rotation: 4 } },
+      { tetrisHarnessVersion: 'v8' }, { observationImage: { count: 1, sha256: 'data:image/private', width: 1, height: 1 } },
+      { input: { buttons: ['hard-drop'] } }, { appliedTick: 31 }])
+      expect(() => publicReplay({ ...source, events: [{ ...source.events[0], ...change }] })).toThrow();
+    expect(() => publicReplay({ ...replay, events: [{ ...replay.events[0], decisionStage: 'key' }] })).toThrow();
+  });
+  it.each([undefined, ...tetrisHarnessVersions])('clones source version %s with own credentials, overriding requested replacement without rewriting history', async version => {
+    const source = tetrisReplay(version);
+    globals.__CF_ENV__ = { ...(globals.__CF_ENV__ as Record<string, unknown>), MATCH_SERVICE: { fetch: async (request: Request) => {
+      calls.push(request);
+      return Response.json(new URL(request.url).pathname.endsWith('/replay') ? source : { id: 'created', status: 'ready' });
+    } } };
+    await indexed();
+    await database.update(arenaMatch).set({ gameId: 'tetris' }).where(eq(arenaMatch.id, 'arcade-a'));
+    const post = await arena.publishReplay('alice', { matchId: 'arcade-a', title: 'Frozen Tetris fixture' });
+    const own = await arena.saveProfile('bob', { name: 'Own SystemOne', provider: 'systemone', apiKey: 'fixture-provider-key', thinkMode: 'always' });
+    await arena.createArcadeSession('bob', { cloneId: post.id, gameId: 'tetris', mode: 'ai-ai',
+      config: { tetrisHarnessVersion: version === tetrisHarnessVersions[1] ? tetrisHarnessVersions[0] : tetrisHarnessVersions[1] },
+      controllers: [0, 1].map(() => ({ kind: 'ai', profileId: own.id })) });
+    const cloned = await calls.at(-1)!.clone().json();
+    expect(cloned.config).toEqual({ tetrisHarnessVersion: version ?? tetrisHarnessVersions[0] });
+    expect(cloned.controllers[0].profile).toMatchObject({ ownerId: 'bob', id: own.id, thinkMode: 'never' });
+    expect((await arena.communityDetail(post.id)).replay.config).toEqual(source.config);
+    if (!version) expect(source.config).not.toHaveProperty('tetrisHarnessVersion');
+  });
+  it.each([
+    ['typesafe/jev-1.13', 'unknown/model', true],
+    ['unknown/model', 'typesafe/jev-1.14', false],
+  ] as const)('validates frozen clone model %s rather than the credential profile model %s', async (sourceModel, credentialModel, supported) => {
+    const source = tetrisReplay(tetrisHarnessVersions[1]);
+    source.controllers = source.controllers.map(controller => ({ ...controller, profile: { ...controller.profile, provider: 'openrouter', model: sourceModel } }));
+    globals.__CF_ENV__ = { ...(globals.__CF_ENV__ as Record<string, unknown>), MATCH_SERVICE: { fetch: async (request: Request) => {
+      calls.push(request);
+      return Response.json(new URL(request.url).pathname.endsWith('/replay') ? source : { id: 'created', status: 'ready' });
+    } } };
+    await indexed();
+    await database.update(arenaMatch).set({ gameId: 'tetris' }).where(eq(arenaMatch.id, 'arcade-a'));
+    const post = await arena.publishReplay('alice', { matchId: 'arcade-a', title: 'Frozen visual model fixture' });
+    const own = await arena.saveProfile('bob', { name: 'Own model credential', provider: 'openrouter', model: credentialModel, apiKey: 'fixture-provider-key', thinkMode: 'always' });
+    calls.length = 0;
+    const body = { cloneId: post.id, gameId: 'tetris', mode: 'ai-ai', controllers: [0, 1].map(() => ({ kind: 'ai', profileId: own.id })) };
+    if (!supported) {
+      await expect(arena.createArcadeSession('bob', body)).rejects.toThrow('verified image support');
+      expect(calls).toHaveLength(0);
+    } else {
+      await arena.createArcadeSession('bob', body);
+      const payload = await calls.at(-1)!.clone().json();
+      expect(payload.config.tetrisHarnessVersion).toBe(tetrisHarnessVersions[1]);
+      expect(payload.controllers[0].profile).toMatchObject({ ownerId: 'bob', id: own.id, model: sourceModel, thinkMode: 'never' });
+    }
   });
 });

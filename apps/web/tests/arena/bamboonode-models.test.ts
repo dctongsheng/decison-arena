@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { ModelProfile } from '@decision-arena/core';
 import { decryptSecret } from '@decision-arena/providers';
 import { createClient, type Client } from '@libsql/client';
 import { eq } from 'drizzle-orm';
@@ -217,6 +218,14 @@ describe('BambooNode automatic model connection', () => {
     const before = await arena.listProfiles('alice');
     expect(before.items).toHaveLength(3);
     expect(
+      before.items.every((profile: ModelProfile) => profile.thinkMode === 'never')
+    ).toBe(true);
+    expect(
+      before.items.find(
+        (profile: ModelProfile) => profile.provider === 'bamboonode-systemone'
+      )
+    ).toMatchObject({ thinkMode: 'never', thinkBudget: 4096 });
+    expect(
       before.items.every((p: any) => p.source === 'bamboonode' && p.available)
     ).toBe(true);
     expect(JSON.stringify(before)).not.toMatch(
@@ -242,6 +251,29 @@ describe('BambooNode automatic model connection', () => {
         .map((c) => JSON.parse(c.body).installation_id)[0]
     ).toBe(JSON.parse(calls.at(-1)!.body).installation_id);
   });
+  it.each(['auto', 'always'] as const)(
+    'preserves an existing explicit %s configuration when synchronizing again',
+    async (thinkMode) => {
+      await linked();
+      await syncBambooConnection('alice');
+      const original = (await arena.listProfiles('alice')).items.find(
+        (profile: ModelProfile) => profile.provider === 'bamboonode-systemone'
+      )!;
+      await database
+        .update(arenaProfile)
+        .set({ thinkMode, thinkBudget: 768 })
+        .where(eq(arenaProfile.id, original.id));
+
+      expect(await syncBambooConnection('alice')).toMatchObject({
+        status: 'connected',
+        models: 3,
+      });
+      const current = (await arena.listProfiles('alice')).items;
+      expect(current).toHaveLength(3);
+      expect(current.find((profile: ModelProfile) => profile.id === original.id))
+        .toMatchObject({ thinkMode, thinkBudget: 768, available: true });
+    }
+  );
   it('requires the newly granted scopes, never assumes identity-only login grants model access', async () => {
     await linked('alice', 'openid profile email');
     expect(await syncBambooConnection('alice')).toMatchObject({

@@ -2,6 +2,12 @@ import type { Action, DecisionMetrics, DecisionReasoning, PublicSeatConfig, Seat
 
 export type ArcadeGameId = 'snake' | 'tetris' | 'platformer';
 export type SnakeHarnessVersion = 'snake-harness-a-v1' | 'snake-harness-b-v1' | 'snake-harness-c-v1';
+export type TetrisHarnessVersion = 'tetris-harness-baseline-v1' | 'tetris-harness-v8-realtime-v1';
+export interface TetrisGoalTarget { leftmostColumn: number; rotation: 0 | 1 | 2 | 3 }
+export interface TetrisGoal extends TetrisGoalTarget { pieceId: number }
+export type TetrisDecisionStage = 'target' | 'key';
+/** Metadata of the observation actually dispatched; never contains image bytes. */
+export interface ArcadeObservationImage { count: 1; sha256: string; width: number; height: number }
 export type ArcadeMode = 'practice' | 'ai-solo' | 'human-ai' | 'ai-ai';
 export type ArcadeButton = 'up' | 'down' | 'left' | 'right' | 'rotate-cw' | 'rotate-ccw' | 'soft-drop' | 'hard-drop' | 'hold' | 'jump';
 export interface ArcadeInput { buttons: ArcadeButton[]; durationMs?: number }
@@ -19,7 +25,7 @@ export interface ArcadeView {
   gameId: ArcadeGameId; tick: number; status: 'playing' | 'finished'; score: ArcadeScore;
   width: number; height: number; currentButtons: ArcadeButton[]; reason?: string;
   cells?: number[]; snake?: ArcadePoint[]; food?: ArcadePoint | null;
-  active?: { type: string; cells: ArcadePoint[] }; next?: string[]; hold?: string | null; pieceId?: number;
+  active?: { type: string; cells: ArcadePoint[]; rotation?: 0 | 1 | 2 | 3 }; next?: string[]; hold?: string | null; pieceId?: number;
   player?: ArcadeRect & { vx: number; vy: number; onGround: boolean };
   platforms?: ArcadeRect[]; hazards?: ArcadeRect[]; coins?: ArcadePoint[]; enemies?: ArcadeRect[]; exit?: ArcadeRect; level?: number;
 }
@@ -41,6 +47,8 @@ export interface ArcadeConfig {
   level?: 1 | 2 | 3;
   /** Snake-only, frozen when creating the session. Missing historical values mean A v1. */
   snakeHarnessVersion?: SnakeHarnessVersion;
+  /** Tetris-only. Missing historical values retain the original direct-key policy. */
+  tetrisHarnessVersion?: TetrisHarnessVersion;
 }
 export interface CreateArcadeInput {
   gameId: ArcadeGameId; mode: ArcadeMode; config: ArcadeConfig; seed?: string;
@@ -56,14 +64,19 @@ export interface ArcadeEvent {
   promptVersion?: string;
   /** Request metadata for new snake events; never backfilled into old recordings. */
   snakeHarnessVersion?: SnakeHarnessVersion;
+  tetrisHarnessVersion?: TetrisHarnessVersion; decisionStage?: TetrisDecisionStage;
+  /** A target updates memory at settledTick; only input events execute keys at appliedTick. */
+  settledTick?: number; pieceId?: number; tetrisGoal?: TetrisGoal | null;
+  observationImage?: ArcadeObservationImage;
   metrics?: DecisionMetrics; reasoning?: DecisionReasoning;
 }
 export interface ArcadeRunSnapshot {
   id: string; controller: PublicSeatConfig; view: ArcadeView; calls: number;
   /** Owner-only human render prediction; never accepted as input or included in public replay. */
   predictionState?: ArcadeState;
-  inflight?: { requestId: string; observedTick: number; startedAt: number };
-  lastDecision?: { observedTick: number; appliedTick?: number; outcome: 'applied' | 'dropped' | 'failed' | 'unknown'; metrics?: DecisionMetrics; reasoning?: DecisionReasoning };
+  tetrisGoal?: TetrisGoal | null;
+  inflight?: { requestId: string; observedTick: number; startedAt: number; decisionStage?: TetrisDecisionStage; tetrisHarnessVersion?: TetrisHarnessVersion; observationImage?: ArcadeObservationImage };
+  lastDecision?: { observedTick: number; appliedTick?: number; settledTick?: number; pieceId?: number; decisionStage?: TetrisDecisionStage; tetrisHarnessVersion?: TetrisHarnessVersion; tetrisGoal?: TetrisGoal | null; outcome: 'applied' | 'dropped' | 'failed' | 'unknown'; metrics?: DecisionMetrics; reasoning?: DecisionReasoning };
 }
 export interface ArcadeSession {
   id: string; engineKind: 'arcade'; schemaVersion: 2; gameId: ArcadeGameId; mode: ArcadeMode;

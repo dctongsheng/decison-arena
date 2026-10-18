@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { getGame } from '@decision-arena/games';
 import { decide, decryptSecret, isBambooNodeProvider, validateEndpoint } from '@decision-arena/providers';
 import { assertBambooNodeAccess, assertBambooNodeKey } from './bamboonode';
+import { localProviderOptions } from './local-provider-policy';
 import { publicSeats } from '@decision-arena/core';
 import { ArcadeSessionObject } from './arcade';
 export { ArcadeSessionObject } from './arcade';
@@ -16,6 +17,7 @@ export interface Env {
   ARENA_ENCRYPTION_KEY: string;
   ARENA_INTERNAL_SECRET?: string;
   LOCAL_DEV?: string;
+  ARENA_LOCAL_PROVIDER_ENDPOINTS?: string;
 }
 interface RecordState {
   id:string; ownerId:string; input:CreateMatchInput; seed:string; state:GameState; rulesVersion:string;
@@ -224,7 +226,7 @@ export class MatchObject extends DurableObject<Env> {
       if(this.rec?.inflight?.id!==operationId||r.revision!==revision||this.isFinished())return;
       const actions=game.legalActions(r.state,seat);
       const history=this.ctx.storage.sql.exec<{value:string}>('SELECT value FROM events ORDER BY seq DESC LIMIT 40').toArray().reverse().map(row=>JSON.parse(row.value) as MatchEvent).filter(e=>e.type==='action').slice(-20).map(e=>({seat:e.seat,action:e.action}));
-      const decision=await decide(profile,key,{state:{game:r.input.gameId,rules:game.rules,position:game.observe(r.state,seat),recentMoves:history},instructions:'Choose exactly one legal action to improve your chance of winning. The position and recent moves are the full available information.',actions});
+      const decision=await decide(profile,key,{state:{game:r.input.gameId,rules:game.rules,position:game.observe(r.state,seat),recentMoves:history},instructions:'Choose exactly one legal action to improve your chance of winning. The position and recent moves are the full available information.',actions},undefined,undefined,localProviderOptions(this.env));
       if(this.rec?.inflight?.id!==operationId||r.revision!==revision||this.isFinished())return;
       // Key deletion while inference is in flight also prevents committing its result.
       const stillExists=await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId,r.ownerId).first<{ciphertext:string}>();
@@ -283,7 +285,7 @@ export default {
       try{
         const body=await request.json() as {endpoint:string;provider:ProviderId};
         if(typeof body.endpoint!=='string'||(!['openrouter','systemone','custom-openrouter','custom-systemone'].includes(body.provider)&&!isBambooNodeProvider(body.provider)))throw new Error('Invalid provider configuration');
-        return json({endpoint:await validateEndpoint(body.endpoint,body.provider)});
+        return json({endpoint:await validateEndpoint(body.endpoint,body.provider,localProviderOptions(env))});
       }catch(error){return json({error:safeError(error)},400);}
     }
     if(parts[0]==='provider-test'&&request.method==='POST'){
@@ -304,7 +306,7 @@ export default {
             }
           };
           await validateConnection();
-          const decision=await decide(body.profile,body.key,body.request);
+          const decision=await decide(body.profile,body.key,body.request,undefined,undefined,localProviderOptions(env));
           await validateConnection();
           return json(decision);
         }finally{await quota.release(leaseId);}

@@ -67,4 +67,4 @@ POST 状态的区分：403 表示前端同源检查失败；401 表示 session �
 >
 > 请给 GET/POST `/oauth/authorize` 的失败路径增加仅含阶段与错误类别的服务端诊断，例如 `parse_request`、`verify_client`、`read_session`、`create_consent`、`consume_consent`、`internal_authorize`，并返回/记录关联 ID。不要记录完整请求 URL、Cookie、state、code、access/refresh token 或 Key。请告知这次失败的阶段、HTTP 状态及部署版本，修复后让用户从 Arena 重新发起授权，不复用旧授权链接。`.dev` 与 `.cn` 是独立环境，请勿互相回退。
 
-生产仍使用独立 client `decision-arena`，回调 `https://arena.startlux-desicion.com/api/auth/oauth2/callback/bamboonode`，详见接入文档。
+生产仍使用独立 client `decision-arena`，回调 `https://arena.startlux-decision.com/api/auth/oauth2/callback/bamboonode`，详见接入文档。

@@ -696,7 +696,7 @@
   background: #102c32;
   border: 1px solid #dfe8d5;
 }
-.arcade-replay-tracks header {
+.arcade-replay-tracks > div > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -705,10 +705,10 @@
   color: #658254;
   font-size: 11px;
 }
-.arcade-replay-tracks header strong {
+.arcade-replay-tracks > div > header strong {
   font-weight: 500;
 }
-.arcade-replay-tracks header span {
+.arcade-replay-tracks > div > header span {
   font-size: 10px;
   color: #879c74;
 }
@@ -1044,3 +1044,25 @@
   font-size: 11px;
   background: #f4f7ef;
 }
+.arcade-tetris-harness,
+.arcade-tetris-planning {
+  padding: 1rem;
+  margin-block: .85rem;
+  border: 1px solid color-mix(in srgb, var(--arena-accent, #176353) 24%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--arena-accent, #176353) 5%, transparent);
+  font-size: .85rem;
+  line-height: 1.6;
+}
+.arcade-tetris-harness p { margin-block: .5rem; }
+.arcade-tetris-harness code { overflow-wrap: anywhere; }
+.arcade-tetris-planning {
+  margin: 0 1rem .75rem;
+  background: #f2f6ed;
+  color: var(--arena-ink, #162e29);
+}
+.arcade-tetris-planning header,
+.arcade-tetris-planning dl > div { display: flex; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.arcade-tetris-planning dl { margin-block: .65rem; }
+.arcade-tetris-planning dd { margin: 0; font-weight: 600; }
+.arcade-tetris-planning p { margin-block: .4rem; }

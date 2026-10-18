@@ -68,12 +68,15 @@ export const createArcadeInput = z.object({
   config: z.object({
     level: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
     snakeHarnessVersion: z.enum(['snake-harness-a-v1', 'snake-harness-b-v1', 'snake-harness-c-v1']).optional(),
+    tetrisHarnessVersion: z.enum(['tetris-harness-baseline-v1', 'tetris-harness-v8-realtime-v1']).optional(),
   }).default({}),
   seed: z.string().trim().min(1).max(128).optional(),
   controllers: z.array(arcadeController).min(1).max(2),
 }).superRefine((value, ctx) => {
   if (value.gameId !== 'snake' && value.config.snakeHarnessVersion !== undefined)
     ctx.addIssue({ code: 'custom', path: ['config', 'snakeHarnessVersion'], message: 'Snake harness versions are only available for snake.' });
+  if (value.gameId !== 'tetris' && value.config.tetrisHarnessVersion !== undefined)
+    ctx.addIssue({ code: 'custom', path: ['config', 'tetrisHarnessVersion'], message: 'Tetris harness versions are only available for tetris.' });
   const expected = value.mode === 'practice' ? ['human'] : value.mode === 'ai-solo' ? ['ai'] : value.mode === 'human-ai' ? ['human', 'ai'] : ['ai', 'ai'];
   if (value.controllers.length !== expected.length || value.controllers.some((c, i) => c.kind !== expected[i]))
     ctx.addIssue({ code: 'custom', path: ['controllers'], message: 'Controllers do not match the selected mode.' });

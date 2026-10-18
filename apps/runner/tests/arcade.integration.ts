@@ -3,9 +3,10 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { resolve } from 'node:path';
-import { Miniflare, Log, LogLevel, Response as MockResponse, type MiniflareOptions } from 'miniflare';
+import { createHash } from 'node:crypto';
+import { Miniflare, Log, LogLevel, Response as MockResponse, type Request as MockRequest, type MiniflareOptions } from 'miniflare';
 import type { ArcadeConfig, ArcadeReplayV2, ArcadeSession, ModelProfile, SeatConfig, SnakeHarnessVersion } from '@decision-arena/core';
-import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame, SNAKE_BASELINE_INSTRUCTIONS, SNAKE_REALTIME_INSTRUCTIONS, SNAKE_HARNESS_PROTOCOL } from '@decision-arena/games';
+import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame, SNAKE_BASELINE_INSTRUCTIONS, SNAKE_REALTIME_INSTRUCTIONS, SNAKE_HARNESS_PROTOCOL, TETRIS_BASELINE_INSTRUCTIONS, TETRIS_HARNESS_PROTOCOL, tetrisGoalScope, renderTetrisObservationPng } from '@decision-arena/games';
 import { encryptSecret, ENDPOINTS } from '@decision-arena/providers';
 import { canObserveAfterInput, canSendObservedDecision } from '../src/arcade-scheduling';
 
@@ -33,7 +34,9 @@ async function request(path: string, body?: unknown, account = owner) {
 }
 async function snapshot(id: string): Promise<ArcadeSession> { const response = await request(`/arcade-sessions/${id}`); expect(response.status).toBe(200); return response.json() as Promise<ArcadeSession>; }
 async function command(id: string, type: string, operationId = crypto.randomUUID()) { return request(`/arcade-sessions/${id}/commands`, { type, operationId }); }
-async function create(controllers: SeatConfig[], gameId = 'tetris', mode = controllers.length === 1 ? controllers[0].kind === 'ai' ? 'ai-solo' : 'practice' : controllers.some(controller => controller.kind === 'human') ? 'human-ai' : 'ai-ai', config: ArcadeConfig = {}) {
+// Existing scheduling cases deliberately exercise the preserved baseline. New
+// default cases pass {} explicitly so the production creation default is tested.
+async function create(controllers: SeatConfig[], gameId = 'tetris', mode = controllers.length === 1 ? controllers[0].kind === 'ai' ? 'ai-solo' : 'practice' : controllers.some(controller => controller.kind === 'human') ? 'human-ai' : 'ai-ai', config: ArcadeConfig = gameId === 'tetris' ? { tetrisHarnessVersion: 'tetris-harness-baseline-v1' } : {}) {
   const response = await request('/arcade-sessions', { gameId, mode, config, controllers, seed: 'arcade-fixture-shared-seed' });
   expect(response.status).toBe(201);
   const session = await response.json() as ArcadeSession; sessions.push(session.id); return session;
@@ -90,7 +93,7 @@ beforeAll(async () => {
     host: '127.0.0.1', port: 0, cf: false, log: new Log(LogLevel.ERROR), bindings: { ARENA_ENCRYPTION_KEY: master, ARENA_INTERNAL_SECRET: internal, LOCAL_DEV: 'true' },
     durableObjects: { MATCHES: { className: 'MatchObject', useSQLite: true }, USER_QUOTAS: { className: 'UserQuota', useSQLite: true }, ARCADES: { className: 'ArcadeSessionObject', useSQLite: true } },
     d1Databases: ['DB'], r2Buckets: ['REPLAYS'], durableObjectsPersist: resolve(persistence, 'do'), d1Persist: resolve(persistence, 'd1'), r2Persist: resolve(persistence, 'r2'),
-    outboundService: async req => {
+    outboundService: async (req: MockRequest) => {
       if (!Object.values(ENDPOINTS).some(endpoint => endpoint === req.url)) throw new Error('Unexpected fixture outbound request');
       const body = await req.json(), index = calls.push(body) - 1;
       active++; peak = Math.max(peak, active);
@@ -880,5 +883,368 @@ describe('real-time ArcadeSessionObject in workerd (fixture providers only)', ()
     await db.prepare('UPDATE arena_credentials SET deleted_at=? WHERE id=?').bind(Date.now(), own.credentialId).run();
     blocker.release(); await until(async () => (await snapshot(session.id)).status === 'paused', 'credential deletion pauses');
     expect((await snapshot(session.id)).events.some(event => event.type === 'decision' && event.outcome === 'applied')).toBe(false);
+  });
+});
+
+describe('Tetris V8 phased visual decisions', () => {
+  const v8 = { tetrisHarnessVersion: 'tetris-harness-v8-realtime-v1' as const };
+  const ownProfile = async (): Promise<ModelProfile> => ({ ...await profile(), provider: 'systemone', endpoint: ENDPOINTS.systemone, thinkMode: 'always' });
+  const selected = (choice: string) => new MockResponse(JSON.stringify({ model: 'fixture-visual-model', answers: { primary_move: { choice, details: { thought: { used: false, tokens: 0 } } } }, usage: { input_tokens: 100, output_tokens: 0 } }), { headers: { 'content-type': 'application/json' } });
+
+  it('keeps explicitly selected baseline requests byte-compatible and records the selected version only in metadata', async () => {
+    const own = await ownProfile(), blocker = gate(); reply = async body => { await blocker.promise; return success(body); };
+    const session = await create([{ kind: 'ai', profile: own }], 'tetris', 'ai-solo', { tetrisHarnessVersion: 'tetris-harness-baseline-v1' });
+    expect(session.config.tetrisHarnessVersion).toBe('tetris-harness-baseline-v1');
+    await command(session.id, 'start'); await until(() => calls.length === 1, 'baseline request');
+    expect(calls[0].questions.primary_move.instructions).toBe(TETRIS_BASELINE_INSTRUCTIONS);
+    expect(calls[0]).not.toHaveProperty('images'); expect(calls[0].state).not.toHaveProperty('decisionStage');
+    expect(calls[0].state.position).not.toHaveProperty('decision_goal_memory');
+    await command(session.id, 'pause'); blocker.release();
+    await until(async () => !(await snapshot(session.id)).runs[0].inflight, 'baseline settled');
+    expect((await snapshot(session.id)).events.find(event => event.type === 'decision')).toMatchObject({ tetrisHarnessVersion: 'tetris-harness-baseline-v1', decisionStage: 'key' });
+  });
+
+  it.each(['practice', 'ai-solo', 'human-ai', 'ai-ai'])('freezes V8 for newly created %s Tetris sessions when the version is omitted', async mode => {
+    const own = await ownProfile();
+    const controllers: SeatConfig[] = mode === 'practice' ? [{ kind: 'human' }]
+      : mode === 'ai-solo' ? [{ kind: 'ai', profile: own }]
+      : mode === 'human-ai' ? [{ kind: 'human' }, { kind: 'ai', profile: own }]
+      : [{ kind: 'ai', profile: own }, { kind: 'ai', profile: own }];
+    const session = await create(controllers, 'tetris', mode, {});
+    expect(session.config.tetrisHarnessVersion).toBe(v8.tetrisHarnessVersion);
+    expect((await snapshot(session.id)).config).toEqual(session.config);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('runs both default V8 AI lanes with independent goals, visual key histories and request accounting', async () => {
+    const left: ModelProfile = { ...await ownProfile(), model: 'fixture-left-visual' };
+    const right: ModelProfile = { ...await ownProfile(), model: 'fixture-right-visual', thinkMode: 'auto' };
+    const targets = [gate(), gate()], keys = [gate(), gate()], following = gate();
+    const laneCalls: any[][] = [[], []], laneActive = [0, 0], lanePeak = [0, 0];
+    reply = async body => {
+      const lane = body.model === left.model ? 0 : 1;
+      expect(body.model).toBe(lane === 0 ? left.model : right.model);
+      const index = laneCalls[lane].push(body) - 1;
+      lanePeak[lane] = Math.max(lanePeak[lane], ++laneActive[lane]);
+      try {
+        if (index === 0) { await targets[lane].promise; return selected(lane === 0 ? 'm10' : 'm27'); }
+        await (index === 1 ? keys[lane].promise : following.promise);
+        const label = lane === 0 ? '持续向左移动，100 毫秒' : '持续向右移动，100 毫秒';
+        const choice = Object.entries(body.questions.primary_move.criteria).find(([, value]) => value === label)?.[0];
+        expect(choice).toBeDefined();
+        return selected(choice!);
+      } finally { laneActive[lane]--; }
+    };
+    const session = await create([{ kind: 'ai', profile: left }, { kind: 'ai', profile: right }], 'tetris', 'ai-ai', {});
+    expect(session.config).toEqual(v8);
+    expect((await command(session.id, 'start')).status).toBe(200);
+    await until(() => calls.length === 2, 'both V8 targets in flight');
+    expect(peak).toBe(2);
+    const initial = await snapshot(session.id);
+    expect(initial.runs.map(run => run.calls)).toEqual([1, 1]);
+    expect(initial.runs.map(run => run.inflight?.decisionStage)).toEqual(['target', 'target']);
+
+    targets[0].release();
+    await until(() => laneCalls[0].length === 2, 'left key while right target is still pending');
+    let current = await snapshot(session.id);
+    expect(current.tick).toBeGreaterThan(initial.tick);
+    expect(current.runs.map(run => run.calls)).toEqual([2, 1]);
+    expect(current.runs[0].tetrisGoal).toMatchObject({ leftmostColumn: 2, rotation: 0 });
+    expect(current.runs[1].tetrisGoal).toBeNull();
+    expect(current.runs[1].inflight?.decisionStage).toBe('target');
+    keys[0].release();
+    await until(() => laneCalls[0].length === 3, 'left accepts a key and independently observes again');
+    expect(laneCalls[1]).toHaveLength(1);
+
+    targets[1].release();
+    await until(() => laneCalls[1].length === 2, 'right key after its own target');
+    keys[1].release();
+    await until(() => laneCalls[1].length === 3, 'right accepts its own key and observes again');
+    current = await snapshot(session.id);
+    expect(current.runs.map(run => run.calls)).toEqual([3, 3]);
+    expect(lanePeak).toEqual([1, 1]); expect(peak).toBe(2);
+    for (const [lane, actionId, goal] of [[0, 'left:100', { leftmost_column: 2, rotation: 0 }], [1, 'right:100', { leftmost_column: 6, rotation: 1 }]] as const) {
+      const outbound = laneCalls[lane], run = current.runs[lane];
+      expect(outbound.map(body => body.state.decisionStage)).toEqual(['target', 'key', 'key']);
+      expect(outbound[0].state.position.decision_goal_memory.target).toBeNull();
+      expect(outbound[1].state.position.decision_goal_memory).toMatchObject({ target: goal, age_actions: 0, recent_actions: [] });
+      expect(outbound[2].state.position.decision_goal_memory).toMatchObject({ target: goal, age_actions: 1 });
+      expect(outbound[2].state.position.decision_goal_memory.recent_actions).toHaveLength(1);
+      expect(outbound[2].state.position.decision_goal_memory.recent_actions[0]).toMatchObject({ action_id: actionId, outcome: 'applied' });
+      expect(outbound[2].state.recentInputs).toHaveLength(1);
+      expect(outbound[2].state.recentInputs[0].input).toEqual({ buttons: [lane === 0 ? 'left' : 'right'], durationMs: 100 });
+      const decisions = current.events.filter(event => event.type === 'decision' && event.runId === run.id);
+      expect(decisions.map(event => [event.decisionStage, event.outcome])).toEqual([['target', 'applied'], ['key', 'applied']]);
+      expect(decisions[0]).not.toHaveProperty('input'); expect(decisions[0]).not.toHaveProperty('appliedTick');
+      expect(decisions[1].actionId).toBe(actionId);
+      expect(outbound[2].state.observedTick).toBeGreaterThanOrEqual(decisions[1].appliedTick!);
+      expect(current.events.filter(event => event.type === 'input' && !event.release && event.runId === run.id)).toHaveLength(1);
+      for (const [index, body] of outbound.entries()) {
+        expect(body).toMatchObject({ think_mode: 'never', return_thought: false, allow_none: false });
+        expect(body.images).toHaveLength(1);
+        expect(Buffer.from(body.images[0].split(',')[1], 'base64')).toEqual(Buffer.from(renderTetrisObservationPng(body.state.position)));
+        if (index) expect(body.state.observedTick - outbound[index - 1].state.observedTick).toBeGreaterThanOrEqual(29);
+      }
+    }
+    await command(session.id, 'end'); following.release();
+  });
+
+  it('keeps each V8 lane budget separate when the same saved model runs on both sides', async () => {
+    const own = await ownProfile(), blocker = gate();
+    const session = await create([{ kind: 'ai', profile: own }, { kind: 'ai', profile: own }], 'tetris', 'ai-ai', {});
+    await patch(session.id, record => { record.runs[0].calls = 299; record.runs[1].calls = 17; });
+    reply = async () => { await blocker.promise; return selected('m14'); };
+    await command(session.id, 'start'); await until(() => calls.length === 2, 'one target from each independent budget');
+    expect((await snapshot(session.id)).runs.map(run => run.calls)).toEqual([300, 18]);
+    blocker.release();
+    await until(async () => (await snapshot(session.id)).status === 'paused', 'first lane budget pauses session');
+    const current = await snapshot(session.id);
+    expect(current.runs.map(run => run.calls)).toEqual([300, 18]);
+    expect(current.error).toContain('model call budget'); expect(current.result).toBeUndefined();
+    expect(calls).toHaveLength(2);
+    expect(current.events.filter(event => event.type === 'input' && !event.release)).toHaveLength(0);
+  });
+
+  const jevProfile = async (provider: 'openrouter' | 'bamboonode-decisions', model: string): Promise<ModelProfile> => {
+    const own: ModelProfile = { ...await profile(), provider, endpoint: ENDPOINTS[provider], model, thinkMode: 'always' };
+    if (provider === 'bamboonode-decisions') await db.prepare('INSERT OR REPLACE INTO arena_bamboo_connections(owner_id,credential_id,status,expires_at,models_json) VALUES(?,?,?,?,?)')
+      .bind(owner, own.credentialId, 'connected', Date.now() + 60_000, JSON.stringify([model])).run();
+    return own;
+  };
+  const jevSelected = (model: string, choice: string) => new MockResponse(JSON.stringify({ model,
+    answers: { primary_move: { type: 'choice', choice, confidence: 0.8 } }, usage: { input_tokens: 100, output_tokens: 0 } }),
+    { headers: { 'content-type': 'application/json' } });
+
+  it.each([
+    ['openrouter', 'typesafe/jev-1.13'], ['bamboonode-decisions', 'typesafe/jev-1.14'],
+  ] as const)('sends full V8 target/key PNGs through mixed %s/%s and System One lanes without sharing control state', async (provider, model) => {
+    const jev = await jevProfile(provider, model), systemOne = await ownProfile();
+    const targets = [gate(), gate()], keys = [gate(), gate()], following = gate();
+    const laneCalls: any[][] = [[], []], laneActive = [0, 0], lanePeak = [0, 0];
+    const visible = (body: any) => Array.isArray(body.state) ? JSON.parse(body.state[0]) : body.state;
+    reply = async body => {
+      const lane = body.model === jev.model ? 0 : 1;
+      expect(body.model).toBe(lane === 0 ? jev.model : systemOne.model);
+      const index = laneCalls[lane].push(body) - 1;
+      lanePeak[lane] = Math.max(lanePeak[lane], ++laneActive[lane]);
+      try {
+        let choice: string;
+        if (index === 0) { await targets[lane].promise; choice = lane === 0 ? 'm10' : 'm27'; }
+        else {
+          await (index === 1 ? keys[lane].promise : following.promise);
+          const label = lane === 0 ? '持续向左移动，100 毫秒' : '持续向右移动，100 毫秒';
+          choice = Object.entries(body.questions.primary_move.criteria).find(([, value]) => value === label)?.[0]!;
+          expect(choice).toBeDefined();
+        }
+        return lane === 0 ? jevSelected(jev.model, choice) : selected(choice);
+      } finally { laneActive[lane]--; }
+    };
+    const session = await create([{ kind: 'ai', profile: jev }, { kind: 'ai', profile: systemOne }], 'tetris', 'ai-ai', {});
+    expect(session.config).toEqual(v8);
+    expect(session.runs.map(run => run.controller.profile?.thinkMode)).toEqual(['never', 'never']);
+    expect(jev.thinkMode).toBe('always'); expect(systemOne.thinkMode).toBe('always');
+    await command(session.id, 'start'); await until(() => calls.length === 2, 'mixed visual targets');
+    targets[0].release();
+    await until(() => laneCalls[0].length === 2, 'Jev key while System One target is pending');
+    let current = await snapshot(session.id);
+    expect(current.runs.map(run => run.calls)).toEqual([2, 1]);
+    expect(current.runs[0].tetrisGoal).toMatchObject({ leftmostColumn: 2, rotation: 0 });
+    expect(current.runs[1].tetrisGoal).toBeNull();
+    keys[0].release(); await until(() => laneCalls[0].length === 3, 'Jev key history observed');
+    expect(laneCalls[1]).toHaveLength(1);
+    targets[1].release(); await until(() => laneCalls[1].length === 2, 'System One own key');
+    keys[1].release(); await until(() => laneCalls[1].length === 3, 'System One own key history observed');
+    current = await snapshot(session.id);
+    expect(current.runs.map(run => run.calls)).toEqual([3, 3]);
+    expect(lanePeak).toEqual([1, 1]); expect(peak).toBe(2);
+    for (const [lane, actionId, goal] of [[0, 'left:100', { leftmost_column: 2, rotation: 0 }], [1, 'right:100', { leftmost_column: 6, rotation: 1 }]] as const) {
+      const outbound = laneCalls[lane], states = outbound.map(visible), run = current.runs[lane];
+      expect(states.map(state => state.decisionStage)).toEqual(['target', 'key', 'key']);
+      expect(states[0].position.decision_goal_memory.target).toBeNull();
+      expect(states[1].position.decision_goal_memory).toMatchObject({ target: goal, age_actions: 0, recent_actions: [] });
+      expect(states[2].position.decision_goal_memory).toMatchObject({ target: goal, age_actions: 1 });
+      expect(states[2].position.decision_goal_memory.recent_actions).toHaveLength(1);
+      expect(states[2].position.decision_goal_memory.recent_actions[0]).toMatchObject({ action_id: actionId, outcome: 'applied' });
+      expect(states[2].recentInputs).toHaveLength(1);
+      expect(states[2].recentInputs[0].input).toEqual({ buttons: [lane === 0 ? 'left' : 'right'], durationMs: 100 });
+      const decisions = current.events.filter(event => event.type === 'decision' && event.runId === run.id);
+      expect(decisions.map(event => [event.decisionStage, event.outcome])).toEqual([['target', 'applied'], ['key', 'applied']]);
+      expect(decisions[0]).not.toHaveProperty('appliedTick'); expect(decisions[1].actionId).toBe(actionId);
+      expect(states[2].observedTick).toBeGreaterThanOrEqual(decisions[1].appliedTick!);
+      expect(current.events.filter(event => event.type === 'input' && !event.release && event.runId === run.id)).toHaveLength(1);
+      for (const [index, body] of outbound.entries()) {
+        const state = states[index];
+        expect(Object.keys(state).sort()).toEqual(['game', 'rules', 'position', 'observedTick', 'promptVersion', 'selectionPurpose', 'decisionStage', 'runtime', 'recentInputs'].sort());
+        expect(state.promptVersion).toBe(TETRIS_HARNESS_PROTOCOL);
+        expect(state.position.tetris_landing_projections.candidates).toHaveLength(40);
+        const png = renderTetrisObservationPng(state.position), expectedImage = `data:image/png;base64,${Buffer.from(png).toString('base64')}`;
+        if (lane === 0) {
+          expect(body.state).toEqual([JSON.stringify(state), { type: 'image_url', image_url: { url: expectedImage } }]);
+          expect(Object.keys(body).sort()).toEqual(['model', 'questions', 'state']);
+          for (const field of ['images', 'think_mode', 'return_thought', 'think_budget', 'return_details', 'allow_none']) expect(body).not.toHaveProperty(field);
+        } else {
+          expect(Array.isArray(body.state)).toBe(false);
+          expect(body.images).toEqual([expectedImage]);
+          expect(body).toMatchObject({ think_mode: 'never', return_thought: false, allow_none: false });
+        }
+        if (index < decisions.length) {
+          expect(decisions[index]).toMatchObject({ promptVersion: TETRIS_HARNESS_PROTOCOL, tetrisHarnessVersion: v8.tetrisHarnessVersion,
+            observedTick: state.observedTick, observationImage: { count: 1, width: 384, height: 576, sha256: createHash('sha256').update(png).digest('hex') } });
+        }
+      }
+      expect(Object.keys(outbound[0].questions.primary_move.criteria)).toHaveLength(42);
+      expect(Object.keys(outbound[1].questions.primary_move.criteria)).toHaveLength(getArcadeGame('tetris').candidates(getArcadeGame('tetris').create({}, session.seed)).length);
+    }
+    await command(session.id, 'end'); following.release();
+  });
+
+  it('counts mixed Jev and System One target requests against independent lane budgets', async () => {
+    const jev = await jevProfile('openrouter', 'typesafe/jev-1.14'), systemOne = await ownProfile(), blocker = gate();
+    const session = await create([{ kind: 'ai', profile: jev }, { kind: 'ai', profile: systemOne }], 'tetris', 'ai-ai', {});
+    await patch(session.id, record => { record.runs[0].calls = 299; record.runs[1].calls = 17; });
+    reply = async body => { await blocker.promise; return body.model === jev.model ? jevSelected(jev.model, 'm14') : selected('m14'); };
+    await command(session.id, 'start'); await until(() => calls.length === 2, 'one visual target per mixed lane');
+    expect((await snapshot(session.id)).runs.map(run => run.calls)).toEqual([300, 18]);
+    blocker.release(); await until(async () => (await snapshot(session.id)).status === 'paused', 'mixed first lane budget pauses');
+    const current = await snapshot(session.id);
+    expect(current.runs.map(run => run.calls)).toEqual([300, 18]);
+    expect(current.error).toContain('model call budget'); expect(current.result).toBeUndefined();
+    expect(calls).toHaveLength(2); expect(current.events.filter(event => event.type === 'input' && !event.release)).toHaveLength(0);
+  });
+
+  it.each(['m1', 'm14'])('counts both phases, preserves real-time physics, and replans only after four keys (target %s)', async choice => {
+    const own = await ownProfile(), finalTarget = gate();
+    reply = async (body, index) => {
+      if (index >= 5) await finalTarget.promise;
+      return body.state.decisionStage === 'target' ? selected(choice) : success(body, '释放所有按键', '');
+    };
+    const session = await create([{ kind: 'ai', profile: own }], 'tetris', 'ai-solo', v8);
+    const operationId = crypto.randomUUID(); await command(session.id, 'start', operationId); await command(session.id, 'start', operationId);
+    await until(() => calls.length === 6, 'target then four keys then target');
+    const current = await snapshot(session.id);
+    expect(calls.map(body => body.state.decisionStage)).toEqual(['target','key','key','key','key','target']);
+    expect(peak).toBe(1); expect(current.runs[0].calls).toBe(6); expect(current.tick).toBeGreaterThan(100);
+    expect(calls[5].state.position.decision_goal_memory.recent_actions).toHaveLength(4);
+    for (const body of calls) {
+      expect(body.images).toHaveLength(1); expect(body.images[0].startsWith('data:image/png;base64,')).toBe(true);
+      expect(body).toMatchObject({ think_mode: 'never', return_thought: false, allow_none: false });
+      expect(body.state.position.tetris_landing_projections.candidates).toHaveLength(40);
+    }
+    expect(Object.keys(calls[0].questions.primary_move.criteria)).toHaveLength(42);
+    const decisions = current.events.filter(event => event.type === 'decision');
+    const target = decisions.find(event => event.decisionStage === 'target')!;
+    expect(target).toMatchObject({ outcome: 'applied', promptVersion: TETRIS_HARNESS_PROTOCOL, observationImage: { count: 1, width: 384, height: 576 } });
+    expect(target).not.toHaveProperty('appliedTick'); expect(target).not.toHaveProperty('input');
+    expect(target.tetrisGoal).toEqual(choice === 'm1' ? null : { pieceId: target.pieceId, leftmostColumn: 3, rotation: 0 });
+    const sha256 = async (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+    for (let index=0; index<decisions.length; index++) {
+      const image = Buffer.from(calls[index].images[0].split(',')[1], 'base64');
+      const sha = await sha256(image);
+      expect(decisions[index].observationImage?.sha256).toBe(sha);
+      expect(decisions[index].observedTick).toBe(calls[index].state.observedTick);
+      expect(sha).toBe(await sha256(renderTetrisObservationPng(calls[index].state.position)));
+    }
+    expect(current.events.filter(event => event.type === 'input' && !event.release)).toHaveLength(4);
+    const starts = calls.map(body => body.state.observedTick);
+    for (let index = 1; index < starts.length; index++) expect(starts[index] - starts[index - 1]).toBeGreaterThanOrEqual(29);
+    await command(session.id, 'pause'); finalTarget.release();
+  });
+
+  it.each(['pause','end'])('drops a target returned after %s without applying a key or silently retrying', async ending => {
+    const own = await ownProfile(), blocker = gate(); reply = async () => { await blocker.promise; return selected('m14'); };
+    const session = await create([{ kind: 'ai', profile: own }], 'tetris', 'ai-solo', v8);
+    await command(session.id, 'start'); await until(() => calls.length === 1, 'target pending');
+    const before = await snapshot(session.id); await sleep(100); expect((await snapshot(session.id)).tick).toBeGreaterThan(before.tick);
+    await command(session.id, ending); blocker.release();
+    await until(async () => !(await snapshot(session.id)).runs[0].inflight, 'late target settled');
+    const current = await snapshot(session.id);
+    expect(current.runs[0].tetrisGoal).toBeNull(); expect(current.runs[0].lastDecision).toMatchObject({ decisionStage: 'target', outcome: 'dropped', metrics: { actualModel: 'fixture-visual-model' } });
+    expect(current.events.filter(event => event.type === 'input' && !event.release)).toHaveLength(0); expect(calls).toHaveLength(1);
+    if (ending === 'end') {
+      const replay = await (await request(`/arcade-sessions/${session.id}/replay`)).json() as ArcadeReplayV2;
+      expect(replay.events.some(event => event.observationImage?.sha256)).toBe(true);
+      expect(JSON.stringify(replay)).not.toContain('data:image/'); expect(JSON.stringify(replay)).not.toContain('fixture-model-secret');
+    }
+  });
+
+  it('rejects a target for a piece that locks while inference is pending', async () => {
+    const own = await ownProfile(), session = await create([{ kind: 'ai', profile: own }], 'tetris', 'ai-solo', v8);
+    const adapter = getArcadeGame('tetris'); let nearLock: any = adapter.create({}, session.seed);
+    for (let i=0; i<3000 && nearLock.lockTicks!==20; i++) nearLock=adapter.step(nearLock);
+    expect(nearLock.lockTicks).toBe(20);
+    await patch(session.id, record => { record.tick=nearLock.tick; record.runs[0].state=nearLock; });
+    const blocker=gate(), following=gate(); reply=async(_body,index)=>{await(index===0?blocker.promise:following.promise);return selected('m14');};
+    await command(session.id,'start'); await until(()=>calls.length===1,'old piece target');
+    const pieceId=calls[0].state.position.pieceId;
+    await until(async()=> (await snapshot(session.id)).runs[0].view.pieceId!==pieceId,'piece changes'); blocker.release();
+    await until(async()=> (await snapshot(session.id)).events.some(event=>event.decisionStage==='target'&&event.outcome==='dropped'),'stale target dropped');
+    expect((await snapshot(session.id)).runs[0].tetrisGoal).toBeNull();
+    await command(session.id,'pause'); following.release();
+  });
+
+  it('restores an unknown target request paused and requires explicit retry', async () => {
+    const own=await ownProfile(), session=await create([{kind:'ai',profile:own}],'tetris','ai-solo',v8);
+    await patch(session.id, record=>{
+      record.status='running'; record.runs[0].calls=1;
+      record.runs[0].inflight={requestId:'fixture-unknown-target',generation:record.generation,observedTick:0,startedAt:Date.now()-1000,pieceId:1,tetrisHarnessVersion:v8.tetrisHarnessVersion,decisionStage:'target',promptVersion:TETRIS_HARNESS_PROTOCOL};
+    });
+    const restored=await snapshot(session.id);
+    expect(restored.status).toBe('paused');expect(restored.needsRetry).toBe(true);expect(calls).toHaveLength(0);
+    expect(restored.events.find(event=>event.requestId==='fixture-unknown-target')).toMatchObject({decisionStage:'target',outcome:'unknown'});
+    expect((await command(session.id,'resume')).status).toBe(400);
+    const blocker=gate();reply=async()=>{await blocker.promise;return selected('m0');};
+    expect((await command(session.id,'retry')).status).toBe(200);await until(()=>calls.length===1,'explicit retry target');
+    expect(calls[0].state.decisionStage).toBe('target');await command(session.id,'pause');blocker.release();
+  });
+
+  it('persists an accepted same-piece goal across pause and runtime reconstruction without repeating the target call', async () => {
+    const own=await ownProfile(), session=await create([{kind:'ai',profile:own}],'tetris','ai-solo',v8);
+    const blocker=gate();reply=async(_body,index)=>{if(index>0)await blocker.promise;return selected('m14');};
+    await command(session.id,'start');await until(async()=> (await snapshot(session.id)).runs[0].lastDecision?.outcome==='applied','target accepted');
+    await command(session.id,'pause');
+    const before=await snapshot(session.id);expect(before.runs[0].tetrisGoal).toMatchObject({leftmostColumn:3,rotation:0});
+    await patch(session.id,()=>{});
+    expect((await snapshot(session.id)).runs[0].tetrisGoal).toEqual(before.runs[0].tetrisGoal);
+    await command(session.id,'resume');await until(()=>calls.length===2,'key after persisted goal');
+    expect(calls[1].state.decisionStage).toBe('key');
+    expect(calls[1].state.position.decision_goal_memory.target).toEqual({leftmost_column:3,rotation:0});
+    await command(session.id,'pause');blocker.release();
+  });
+
+  it('leaves old Tetris records without a harness version on the original payload and replay metadata', async () => {
+    const own=await ownProfile(),session=await create([{kind:'ai',profile:own}]);
+    await patch(session.id,record=>{delete record.input.config.tetrisHarnessVersion;});
+    const blocker=gate();reply=async body=>{await blocker.promise;return success(body);};
+    await command(session.id,'start');await until(()=>calls.length===1,'historical baseline');
+    expect(calls[0]).not.toHaveProperty('images');expect(calls[0].state).not.toHaveProperty('decisionStage');
+    expect(calls[0].questions.primary_move.instructions).toBe(TETRIS_BASELINE_INSTRUCTIONS);
+    await command(session.id,'end');blocker.release();await until(async()=>!(await snapshot(session.id)).runs[0].inflight,'historical settled');
+    const replay=await(await request(`/arcade-sessions/${session.id}/replay`)).json() as ArcadeReplayV2;
+    expect(replay.config).not.toHaveProperty('tetrisHarnessVersion');
+    expect(replay.events.find(event=>event.type==='decision')).not.toHaveProperty('tetrisHarnessVersion');
+  });
+
+  it('includes target requests in the shared 300-call budget and pauses before the next key', async () => {
+    const own=await ownProfile(),session=await create([{kind:'ai',profile:own}],'tetris','ai-solo',v8);
+    await patch(session.id,record=>{record.runs[0].calls=299;});reply=async()=>selected('m14');
+    await command(session.id,'start');await until(async()=> (await snapshot(session.id)).status==='paused','budget after target');
+    const current=await snapshot(session.id);expect(current.runs[0].calls).toBe(300);expect(calls).toHaveLength(1);expect(current.result).toBeUndefined();
+    expect(current.events.filter(event=>event.type==='input'&&!event.release)).toHaveLength(0);
+  });
+
+  it('does not substitute a target or retry when the provider abstains', async () => {
+    const own=await ownProfile(),session=await create([{kind:'ai',profile:own}],'tetris','ai-solo',v8);
+    reply=async()=>new MockResponse(JSON.stringify({answers:{primary_move:{choice:null}}}),{headers:{'content-type':'application/json'}});
+    await command(session.id,'start');await until(async()=> (await snapshot(session.id)).needsRetry===true,'invalid target pauses');
+    expect(calls).toHaveLength(1);expect((await snapshot(session.id)).runs[0].tetrisGoal).toBeNull();
+  });
+
+  it('rejects unknown visual models and cross-game harness settings without paid requests', async () => {
+    const own={ ...await profile(), model: 'typesafe/jev-unknown' };
+    for(const body of [{gameId:'tetris',config:v8},{gameId:'snake',config:v8},{gameId:'tetris',config:{tetrisHarnessVersion:'guessed'}}]){
+      const response=await request('/arcade-sessions',{...body,mode:'ai-solo',controllers:[{kind:'ai',profile:own}],seed:'fixture'});
+      expect(response.status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
   });
 });

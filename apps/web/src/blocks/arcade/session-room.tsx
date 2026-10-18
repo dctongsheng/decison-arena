@@ -38,6 +38,7 @@ import { ArcadeReplayPlayer } from './replay-player';
 import { RunPanel } from './run-panel';
 import { arcadeReason, ScoreBreakdown } from './score';
 import { arcadeCompletionState, arcadeControlState } from './session-state';
+import { TetrisHarnessNotice } from './tetris-planning';
 
 import './arcade.css';
 
@@ -135,6 +136,7 @@ function Room({ id }: { id: string }) {
       {snapshot.runs.some((run) => run.controller.kind === 'ai') && (
         <p className="arcade-control-help">{a('thinking_disabled_room')}</p>
       )}
+      {snapshot.gameId === 'tetris' && <TetrisHarnessNotice config={snapshot.config} />}
       {pauseNotice && (
         <p className="arcade-control-help" role="status">
           {pauseNotice}
@@ -310,6 +312,7 @@ function Room({ id }: { id: string }) {
               index={index}
               single={snapshot.runs.length === 1}
               status={snapshot.status}
+              tetrisHarnessVersion={snapshot.config.tetrisHarnessVersion}
               enabled={controllerReady && run.controller.kind === 'human'}
               onInput={run.controller.kind === 'human' ? sendInput : undefined}
               onPause={() => {
@@ -374,9 +377,11 @@ function Room({ id }: { id: string }) {
                       </strong>
                     </div>
                     <p className="arcade-caption">
+                      {run.lastDecision.decisionStage && `${a(`tetris.stage.${run.lastDecision.decisionStage}`)} · `}
                       {run.lastDecision.observedTick} →{' '}
-                      {run.lastDecision.appliedTick ?? '—'} tick ·{' '}
-                      {run.lastDecision.outcome}
+                      {(run.lastDecision.decisionStage === 'target' ? run.lastDecision.settledTick : run.lastDecision.appliedTick) ?? '—'} tick ·{' '}
+                      {a(`outcome.${run.lastDecision.outcome}`)}
+                      {run.lastDecision.decisionStage === 'target' && ` · ${a('tetris.target_returned')}`}
                     </p>
                   </>
                 ) : (
@@ -399,7 +404,7 @@ function Room({ id }: { id: string }) {
                 <strong>
                   {snapshot.runs.find((run) => run.id === event.runId)
                     ?.controller.profile?.name || a('ai')}{' '}
-                  · {event.actionId || event.outcome}
+                  · {event.decisionStage && `${a(`tetris.stage.${event.decisionStage}`)} · `}{event.actionId || (event.outcome ? a(`outcome.${event.outcome}`) : '')}
                 </strong>
                 <small>
                   {event.metrics

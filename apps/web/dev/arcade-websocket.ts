@@ -2,6 +2,35 @@ import { createServer, request as httpRequest } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { Plugin } from 'vite';
 
+/** Explicit origins only: public dev access must use HTTPS. Do not inherit
+ * auth wildcard domains or trust the request Host / forwarded headers. */
+export function arcadeDevAllowedOrigins(
+  port: number,
+  env: { VITE_APP_URL?: string; AUTH_TRUSTED_ORIGINS?: string } = process.env
+) {
+  const origins = new Set([
+    `http://127.0.0.1:${port}`,
+    `http://localhost:${port}`,
+  ]);
+  const configured = [env.VITE_APP_URL || '', ...(env.AUTH_TRUSTED_ORIGINS || '').split(',')];
+  for (const entry of configured) {
+    const value = entry.trim();
+    if (!value || /[\s*\\]/.test(value)) continue;
+    try {
+      const url = new URL(value);
+      const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      if (
+        (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
+        url.username || url.password || url.pathname !== '/' || url.search || url.hash
+      ) continue;
+      origins.add(url.origin);
+    } catch {
+      // Invalid or wildcard entries do not broaden the WebSocket allowlist.
+    }
+  }
+  return origins;
+}
+
 /** Node fetch cannot relay a workerd WebSocket upgrade. This dev-only bridge
  * validates the existing server session before forwarding to the loopback runner. */
 export function arcadeWebSocketBridge(): Plugin {
@@ -31,7 +60,7 @@ export function arcadeWebSocketBridge(): Plugin {
           const address = server.httpServer?.address();
           if (!address || typeof address === 'string') return reject(503);
           const origin = request.headers.origin;
-          if (!origin || ![`http://127.0.0.1:${address.port}`, `http://localhost:${address.port}`].includes(origin)) return reject(403);
+          if (!origin || !arcadeDevAllowedOrigins(address.port).has(origin)) return reject(403);
           const secret = process.env.ARENA_INTERNAL_SECRET;
           const runner = new URL(process.env.ARENA_RUNNER_URL || 'http://127.0.0.1:5092');
           if (!secret || runner.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(runner.hostname)) return reject(503);

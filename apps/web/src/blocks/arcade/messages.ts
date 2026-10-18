@@ -1,6 +1,26 @@
 import { m } from '@/paraglide/messages.js';
 
 const messages = {
+  'tetris.harness': m['arcade.tetris.harness'],
+  'tetris.baseline': m['arcade.tetris.baseline'],
+  'tetris.v8': m['arcade.tetris.v8'],
+  'tetris.baseline_note': m['arcade.tetris.baseline_note'],
+  'tetris.v8_note': m['arcade.tetris.v8_note'],
+  'tetris.frozen': m['arcade.tetris.frozen'],
+  'tetris.planning': m['arcade.tetris.planning'],
+  'tetris.piece': m['arcade.tetris.piece'],
+  'tetris.current_pose': m['arcade.tetris.current_pose'],
+  'tetris.target': m['arcade.tetris.target'],
+  'tetris.no_target': m['arcade.tetris.no_target'],
+  'tetris.column': m['arcade.tetris.column'],
+  'tetris.rotation': m['arcade.tetris.rotation'],
+  'tetris.stage': m['arcade.tetris.stage'],
+  'tetris.stage.target': m['arcade.tetris.stage.target'],
+  'tetris.stage.key': m['arcade.tetris.stage.key'],
+  'tetris.coordinates': m['arcade.tetris.coordinates'],
+  'tetris.conditional': m['arcade.tetris.conditional'],
+  'tetris.target_returned': m['arcade.tetris.target_returned'],
+
   settling: m['arcade.settling'],
   finished_settling: m['arcade.finished_settling'],
   replay_events: m['arcade.replay_events'],

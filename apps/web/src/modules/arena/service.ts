@@ -1,4 +1,5 @@
 import type {
+  ArcadeConfig,
   ArcadeReplayV2,
   ArcadeSession,
   CreateArcadeInput,
@@ -14,6 +15,7 @@ import {
   encryptSecret,
   isBambooNodeProvider,
   maskSecret,
+  supportsDecisionImages,
   validateEndpoint,
 } from '@decision-arena/providers';
 import {
@@ -281,24 +283,27 @@ async function normalizeProfile(ownerId: string, input: unknown) {
   )
     throw new ArenaError('A model identifier is required.');
   try {
-    let normalized = await validateEndpoint(endpoint, data.provider, {
-      resolve: false,
-    });
+    let normalized: string;
     if (data.provider.startsWith('custom-')) {
-      // Public DNS and outbound restrictions must use the same workerd runtime
-      // that performs inference, including when the web frontend runs in Node.
+      // The inference runtime owns custom endpoint policy, including DNS and
+      // explicitly configured local development exceptions. Never accept that
+      // policy from the request body or duplicate it in the web process.
       const checked = await runnerJson<{ endpoint: string }>(
         ownerId,
         '/validate-endpoint',
         {
           method: 'POST',
           body: JSON.stringify({
-            endpoint: normalized,
+            endpoint,
             provider: data.provider,
           }),
         }
       );
       normalized = checked.endpoint;
+    } else {
+      normalized = await validateEndpoint(endpoint, data.provider, {
+        resolve: false,
+      });
     }
     return {
       ...data,
@@ -600,6 +605,14 @@ export async function createArcadeSession(ownerId: string, input: unknown) {
     throw new ArenaError(
       'Cloned challenges must keep the original controller types.'
     );
+  const gameId = source?.gameId ?? data.gameId;
+  // Resolve new-game defaults before checking model compatibility. Historical
+  // recordings and clones keep the version that originally produced their moves.
+  const config: ArcadeConfig = source?.gameId === 'snake'
+    ? { ...source.config, snakeHarnessVersion: source.config.snakeHarnessVersion ?? 'snake-harness-a-v1' }
+    : gameId === 'tetris'
+      ? { ...(source?.config ?? data.config), tetrisHarnessVersion: (source?.config ?? data.config).tetrisHarnessVersion ?? (source ? 'tetris-harness-baseline-v1' : 'tetris-harness-v8-realtime-v1') }
+      : source?.config ?? data.config;
   const controllers: SeatConfig[] = [];
   for (const [index, controller] of data.controllers.entries()) {
     const original = source?.controllers[index];
@@ -623,6 +636,10 @@ export async function createArcadeSession(ownerId: string, input: unknown) {
       selected.name = original.profile.name;
       selected.model = original.profile.model;
     }
+    if (gameId === 'tetris' &&
+        config.tetrisHarnessVersion === 'tetris-harness-v8-realtime-v1' &&
+        !supportsDecisionImages(selected))
+      throw new ArenaError('Tetris V8 requires a model with verified image support: System One or typesafe/jev-1.13/1.14.');
     // Realtime controls always disable thinking, including cloned older challenges.
     // This is a per-session copy; the saved profile still serves chess unchanged.
     await assertBambooProfileAvailable(ownerId, selected);
@@ -632,13 +649,9 @@ export async function createArcadeSession(ownerId: string, input: unknown) {
   if (sourcePost && (await publication(sourcePost.id)).status !== 'published')
     throw new ArenaError('Community replay not found.', 404);
   const payload: CreateArcadeInput = {
-    gameId: source?.gameId ?? data.gameId,
+    gameId,
     mode: source?.mode ?? data.mode,
-    // New clones of legacy snake recordings always use A, independently of any
-    // future default for new sessions. The source replay remains unchanged.
-    config: source?.gameId === 'snake'
-      ? { ...source.config, snakeHarnessVersion: source.config.snakeHarnessVersion ?? 'snake-harness-a-v1' }
-      : source?.config ?? data.config,
+    config,
     seed: source?.seed ?? data.seed,
     controllers,
   };

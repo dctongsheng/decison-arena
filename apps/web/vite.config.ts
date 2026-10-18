@@ -10,6 +10,8 @@ import { defineConfig } from 'vite';
 
 import { loadEnvFiles } from './src/lib/env';
 import { arcadeWebSocketBridge } from './dev/arcade-websocket';
+import { publicOriginProxy } from './dev/public-origin';
+import { configuredPublicOrigin } from './src/lib/dev-public-origin';
 
 // Populate process.env from .env.local / .env.{NODE_ENV} / .env for the
 // dev server and build process (Vite only exposes VITE_* via import.meta.env;
@@ -48,16 +50,30 @@ function workersDbProvider(): string {
 const workersDb = isCloudflareBuild ? workersDbProvider() : '';
 const keepPostgres = workersDb === 'postgresql' || workersDb === 'postgres';
 
+// A Tunnel may expose this dev server, but only the explicitly configured host.
+// Never use allowedHosts: true: Host validation protects the local workspace.
+const publicDevOrigin = configuredPublicOrigin(process.env.ARENA_PUBLIC_ORIGIN);
+const publicDevHost = publicDevOrigin ? [new URL(publicDevOrigin).hostname] : [];
+
 export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
     // Workspace packages and pnpm's shared dependency store live above apps/web.
-    fs: { allow: [fileURLToPath(new URL('../../', import.meta.url))] },
+    fs: {
+      allow: [fileURLToPath(new URL('../../', import.meta.url))],
+      deny: [
+        // Keep Vite defaults and block all local credentials, data and replay artifacts.
+        '.env', '.env.*', '*.{crt,pem}', '**/.git/**',
+        '**/.dev.vars*', '**/data/**', '**/artifacts/**', '**/.wrangler/**',
+        '**/.output/**', '**/.nitro/**',
+        '**/*.{db,sqlite,sqlite3}', '**/*.{db,sqlite,sqlite3}-*', '**/*.log',
+      ],
+    },
     // Cloud sandboxes (e2b) proxy the dev server through a
     // per-sandbox subdomain; without this Vite's host check blocks the
     // preview with "Blocked request. This host is not allowed."
-    allowedHosts: ['.e2b.app'],
+    allowedHosts: ['.e2b.app', ...publicDevHost],
   },
   resolve: {
     tsconfigPaths: true,
@@ -69,6 +85,7 @@ export default defineConfig({
       : {},
   },
   plugins: [
+    publicOriginProxy(),
     arcadeWebSocketBridge(),
     // MDX must run before the react plugin so JSX in compiled MDX gets transformed.
     { enforce: 'pre', ...mdx({ providerImportSource: '@mdx-js/react' }) },

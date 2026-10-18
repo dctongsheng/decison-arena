@@ -41,7 +41,7 @@ const defaults = {
   model: 'typesafe/jev-1.13',
   endpoint: 'https://openrouter.ai/api/alpha/decisions',
   apiKey: '',
-  thinkMode: 'always',
+  thinkMode: 'never',
   thinkBudget: 4096,
 };
 export function ModelsPage() {
@@ -398,7 +398,7 @@ function ModelsContent() {
                   <dt>{t('models.think_mode')}</dt>
                   <dd>
                     {model.provider.includes('systemone')
-                      ? t(`models.think_${model.thinkMode || 'always'}`)
+                      ? t(`models.think_${model.thinkMode || 'never'}`)
                       : t('models.provider_managed')}
                   </dd>
                 </div>
@@ -445,15 +445,20 @@ function ModelsContent() {
                           onClick={() => {
                             setOpen(true);
                             setEditId(model.id);
-                            form.reset({
-                              ...defaults,
-                              name: model.name,
-                              provider: model.provider,
-                              model: model.model,
-                              endpoint: model.endpoint,
-                              thinkMode: model.thinkMode || 'always',
-                              thinkBudget: model.thinkBudget || 4096,
-                            });
+                            // Keep useForm's defaults stable so its next update
+                            // does not replace these untouched editing values.
+                            form.reset(
+                              {
+                                ...defaults,
+                                name: model.name,
+                                provider: model.provider,
+                                model: model.model,
+                                endpoint: model.endpoint,
+                                thinkMode: model.thinkMode || 'never',
+                                thinkBudget: model.thinkBudget || 4096,
+                              },
+                              { keepDefaultValues: true }
+                            );
                             setTested(null);
                             setTestInfo(null);
                             save.reset();

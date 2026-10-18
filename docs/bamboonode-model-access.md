@@ -50,7 +50,7 @@ Arena 使用以下上游管理接口，均为服务端请求：
 | --- | --- | --- |
 | Node 本地开发 | `decision-arena-local` | `http://127.0.0.1:5091/api/auth/oauth2/callback/bamboonode` |
 | 本地 Cloudflare 预览 | `decision-arena-local` | `http://127.0.0.1:5093/api/auth/oauth2/callback/bamboonode` |
-| 生产 | `decision-arena` | `https://arena.startlux-desicion.com/api/auth/oauth2/callback/bamboonode` |
+| 生产 | `decision-arena` | `https://arena.startlux-decision.com/api/auth/oauth2/callback/bamboonode` |
 
 本地 client 可以同时登记两个本地回调。生产必须单独登记；上表的生产域名是项目部署目标，不表示 DNS、OAuth client 或站点已经部署。[生产 client 登记模板](bamboonode-production-client-registration.json) 包含本功能需要的五个 scopes 和两种 grant types。此前已登记的仅身份 client 仍需在上游升级，不能仅修改 Arena 的配置。
 

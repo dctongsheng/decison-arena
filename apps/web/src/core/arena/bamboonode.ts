@@ -465,7 +465,7 @@ export async function syncBambooConnection(
       writes.push(
         db()
           .run(sql`insert into arena_profiles(id,owner_id,name,provider,model,endpoint,credential_id,think_mode,think_budget,created_at,deleted_at)
-        select ${profileId},${ownerId},${spec.name},${spec.provider},${spec.id},${ENDPOINTS[spec.provider]},${row.credentialId},${spec.thinking ? 'always' : 'never'},${spec.thinking ? 4096 : 1024},${now},null where ${guard}
+        select ${profileId},${ownerId},${spec.name},${spec.provider},${spec.id},${ENDPOINTS[spec.provider]},${row.credentialId},'never',${spec.thinking ? 4096 : 1024},${now},null where ${guard}
         on conflict(id) do update set deleted_at=null`)
       );
     }

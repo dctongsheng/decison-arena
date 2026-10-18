@@ -1,18 +1,23 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ARCADE_PROMPT_VERSION, arcadeDecisionInstructions, getArcadeGame, SNAKE_HARNESS_PROTOCOL, snakeHarnessVersion, snakeHarnessInstructions, snakeHarnessPosition, rememberSnakeObservation } from '@decision-arena/games';
 import type { SnakePreviousObservation, SnakeVisibleObservation } from '@decision-arena/games';
-import { decide, decryptSecret } from '@decision-arena/providers';
+import { TETRIS_HARNESS_PROTOCOL, tetrisHarnessVersion, tetrisHarnessInstructions, tetrisHarnessPosition, tetrisGoalCandidates, tetrisGoalScope, applyTetrisGoalChoice, renderTetrisObservationPng } from '@decision-arena/games';
+import { decide, decryptSecret, supportsDecisionImages } from '@decision-arena/providers';
 import { assertBambooNodeAccess, assertBambooNodeKey } from './bamboonode';
+import { localProviderOptions } from './local-provider-policy';
 import { ARCADE_GAME_IDS, ARCADE_MAX_CALLS, ARCADE_MAX_TICKS, ARCADE_MIN_REQUEST_MS, ARCADE_TICK_RATE, publicProfile } from '@decision-arena/core';
-import type { ArcadeAction, ArcadeClientMessage, ArcadeCommand, ArcadeEvent, ArcadeInput, ArcadeReplayV2, ArcadeResult, ArcadeRunSnapshot, ArcadeSession, ArcadeState, ArcadeStatus, CreateArcadeInput, DecisionResponse, PublicSeatConfig, SeatConfig, SnakeHarnessVersion } from '@decision-arena/core';
+import type { Action, ArcadeAction, ArcadeClientMessage, ArcadeCommand, ArcadeEvent, ArcadeInput, ArcadeObservationImage, ArcadeReplayV2, ArcadeResult, ArcadeRunSnapshot, ArcadeSession, ArcadeState, ArcadeStatus, CreateArcadeInput, DecisionResponse, PublicSeatConfig, SeatConfig, SnakeHarnessVersion, TetrisDecisionStage, TetrisGoal, TetrisHarnessVersion } from '@decision-arena/core';
 import type { Env } from './index';
 import { canObserveAfterInput, canSendObservedDecision } from './arcade-scheduling';
+import { pngDataUrl, sameTetrisScope, scopedTetrisPlan, tetrisMemory, tetrisPose, tetrisTargetDue, type TetrisPlan, type TetrisScope } from './tetris-planning';
 
 const BATCH_MS = 50, BROADCAST_MS = 100, WATCHDOG_MS = 5000, STALL_MS = 250;
 const LEASE_RENEW_MS = 30000, LEASE_SAFE_MS = 150000, MAX_EVENTS = 12000;
 const LEGACY_PROMPT_VERSION = 'decision-arena-arcade-v1';
+const TETRIS_V8 = 'tetris-harness-v8-realtime-v1';
 const BUTTONS = new Set(['up', 'down', 'left', 'right', 'rotate-cw', 'rotate-ccw', 'soft-drop', 'hard-drop', 'hold', 'jump']);
-type Inflight = { requestId: string; generation: number; observedTick: number; startedAt: number; pieceId?: number; promptVersion?: string; snakeHarnessVersion?: SnakeHarnessVersion };
+type Inflight = { requestId: string; generation: number; observedTick: number; startedAt: number; pieceId?: number; promptVersion?: string; snakeHarnessVersion?: SnakeHarnessVersion;
+  tetrisHarnessVersion?: TetrisHarnessVersion; decisionStage?: TetrisDecisionStage; tetrisScope?: TetrisScope; beforePose?: ReturnType<typeof tetrisPose>; observationImage?: ArcadeObservationImage };
 type Control = { session: string; clientSeq: number; lastSeen: number; released: boolean; acks: Record<string, number> };
 interface Run {
   id: string; controller: SeatConfig; state: ArcadeState; calls: number; lastRequestedAt: number;
@@ -20,6 +25,7 @@ interface Run {
   observeAfterTick?: number;
   // A small visible-state checkpoint, never RNG or raw provider payload. Needed only by C.
   snakePreviousObservation?: SnakePreviousObservation;
+  tetrisPlan?: TetrisPlan;
 }
 interface RecordState {
   schemaVersion: 2; id: string; ownerId: string; input: CreateArcadeInput; seed: string; rulesVersion: string;
@@ -36,6 +42,10 @@ const realtimeProfile = (profile: NonNullable<SeatConfig['profile']>) => ({ ...p
 const publicController = (controller: SeatConfig, effectivePolicy = false): PublicSeatConfig => ({ kind: controller.kind,
   ...(controller.profile ? { profile: publicProfile(effectivePolicy ? realtimeProfile(controller.profile) : controller.profile) } : {}) });
 const message = (error: unknown) => error instanceof Error ? error.message : 'Arcade operation failed';
+const tetrisDecisionMetadata = (pending: Inflight) => pending.tetrisHarnessVersion ? {
+  tetrisHarnessVersion: pending.tetrisHarnessVersion, decisionStage: pending.decisionStage, pieceId: pending.pieceId,
+  ...(pending.observationImage ? { observationImage: pending.observationImage } : {}),
+} : {};
 
 /** One session owns one or two independent simulations; model latency never gates the clock. */
 export class ArcadeSessionObject extends DurableObject<Env> {
@@ -69,9 +79,9 @@ export class ArcadeSessionObject extends DurableObject<Env> {
             delete run.control;
             if (run.inflight) {
               const pending = run.inflight;
-              run.lastDecision = { observedTick: pending.observedTick, outcome: 'unknown' };
+              run.lastDecision = { observedTick: pending.observedTick, ...(pending.decisionStage ? { settledTick: r.tick, ...tetrisDecisionMetadata(pending) } : {}), outcome: 'unknown' };
               if (run.snakePreviousObservation?.tick === pending.observedTick) run.snakePreviousObservation.outcome = 'unknown';
-              this.event(r, 'decision', { runId: run.id, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), outcome: 'unknown', message: 'Runtime restarted; billing status is unknown. Retry explicitly.' });
+              this.event(r, 'decision', { runId: run.id, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), ...tetrisDecisionMetadata(pending), ...(pending.decisionStage ? { settledTick: r.tick } : {}), outcome: 'unknown', message: 'Runtime restarted; billing status is unknown. Retry explicitly.' });
               delete run.inflight;
               r.needsRetry = true;
             }
@@ -127,12 +137,18 @@ export class ArcadeSessionObject extends DurableObject<Env> {
       config: r.input.config, seed: r.seed, rulesVersion: r.rulesVersion, status: r.status, version: r.version, tick: r.tick,
       runs: r.runs.map(run => ({ id: run.id, controller: publicController(run.controller, r.status !== 'finished'), view: adapter.view(run.state), calls: run.calls,
         ...(run.controller.kind === 'human' ? { predictionState: structuredClone(run.state) } : {}),
-        ...(run.inflight ? { inflight: { requestId: run.inflight.requestId, observedTick: run.inflight.observedTick, startedAt: run.inflight.startedAt } } : {}),
+        ...(r.input.gameId === 'tetris' && r.input.config.tetrisHarnessVersion === TETRIS_V8 ? { tetrisGoal: this.currentTetrisGoal(run) } : {}),
+        ...(run.inflight ? { inflight: { requestId: run.inflight.requestId, observedTick: run.inflight.observedTick, startedAt: run.inflight.startedAt, ...tetrisDecisionMetadata(run.inflight) } } : {}),
         ...(run.lastDecision ? { lastDecision: run.lastDecision } : {}) })),
       events: this.events(since), needsRetry: r.needsRetry, ...(r.result ? { result: r.result } : {}), ...(r.error ? { error: r.error } : {}),
       limits: { maxTicks: ARCADE_MAX_TICKS, maxCallsPerRun: ARCADE_MAX_CALLS, minRequestIntervalMs: ARCADE_MIN_REQUEST_MS },
       createdAt: r.createdAt, updatedAt: r.updatedAt,
     };
+  }
+  private currentTetrisGoal(run: Run): TetrisGoal | null {
+    if (!run.tetrisPlan?.target || run.state.status !== 'playing') return null;
+    const scope = tetrisGoalScope(getArcadeGame('tetris').observe(run.state));
+    return sameTetrisScope(run.tetrisPlan.scope, scope) ? { ...run.tetrisPlan.target, pieceId: scope.pieceId } : null;
   }
   private broadcast(force = false) {
     if (!this.rec || (!force && Date.now() - this.lastBroadcast < BROADCAST_MS)) return;
@@ -269,43 +285,66 @@ export class ArcadeSessionObject extends DurableObject<Env> {
     // its controls; observations must wait for step() to consume at least one frame.
     if (current.status !== 'running' || current.needsRetry || run.inflight || this.calls.has(runId) || !canObserveAfterInput(run)) return;
     if (!current.leaseId || Date.now() - current.leaseRenewedAt >= LEASE_SAFE_MS) return;
-    const adapter = getArcadeGame(current.input.gameId), actions = adapter.candidates(run.state);
-    if (!actions.length) { this.pause('The game returned no model input candidates.', true); return; }
+    const adapter = getArcadeGame(current.input.gameId);
     const view = adapter.view(run.state), requestId = crypto.randomUUID(), controller = new AbortController();
     const harness = current.input.gameId === 'snake' ? snakeHarnessVersion(current.input.config.snakeHarnessVersion) : undefined;
-    const pending: Inflight = { requestId, generation: current.generation, observedTick: current.tick, startedAt: Date.now(), promptVersion: harness ? SNAKE_HARNESS_PROTOCOL : ARCADE_PROMPT_VERSION, ...(harness ? { snakeHarnessVersion: harness } : {}), ...(view.pieceId === undefined ? {} : { pieceId: view.pieceId }) };
     const visible = adapter.observe(run.state), profile = run.controller.profile!;
-    const position = harness ? snakeHarnessPosition(harness, visible, actions, run.snakePreviousObservation) : visible;
+    const explicitTetrisHarness = current.input.gameId === 'tetris' ? current.input.config.tetrisHarnessVersion : undefined;
+    const v8 = current.input.gameId === 'tetris' && current.input.config.tetrisHarnessVersion === TETRIS_V8;
+    const plan = v8 ? scopedTetrisPlan(run.tetrisPlan, tetrisGoalScope(visible)) : undefined;
+    const stage: TetrisDecisionStage | undefined = plan ? tetrisTargetDue(plan) ? 'target' : 'key' : undefined;
+    const actions = stage === 'target' ? tetrisGoalCandidates(visible) : adapter.candidates(run.state);
+    if (!actions.length) { this.pause('The game returned no model input candidates.', true); return; }
+    const pending: Inflight = { requestId, generation: current.generation, observedTick: current.tick, startedAt: Date.now(), promptVersion: v8 ? TETRIS_HARNESS_PROTOCOL : harness ? SNAKE_HARNESS_PROTOCOL : ARCADE_PROMPT_VERSION, ...(harness ? { snakeHarnessVersion: harness } : {}), ...(view.pieceId === undefined ? {} : { pieceId: view.pieceId }), ...(explicitTetrisHarness ? { tetrisHarnessVersion: explicitTetrisHarness, decisionStage: stage ?? 'key' } : {}), ...(plan ? { tetrisScope: plan.scope, beforePose: tetrisPose(visible) } : {}) };
+    const position = plan ? tetrisHarnessPosition(TETRIS_V8, visible, tetrisMemory(plan, visible)) : harness ? snakeHarnessPosition(harness, visible, actions as ArcadeAction[], run.snakePreviousObservation) : visible;
+    const image = plan ? renderTetrisObservationPng(visible) : undefined;
     const recentInputs = this.ctx.storage.sql.exec<{ value: string }>("SELECT value FROM arcade_events WHERE json_extract(value,'$.runId')=? AND json_extract(value,'$.type')='input' ORDER BY seq DESC LIMIT 20", runId).toArray().reverse().map(row => JSON.parse(row.value) as ArcadeEvent).map(event => ({ tick: event.appliedTick ?? event.tick, input: event.input }));
     this.change(r => { const lane = r.runs.find(entry => entry.id === runId)!; lane.inflight = pending; lane.calls++; lane.lastRequestedAt = pending.startedAt;
       if (harness === 'snake-harness-c-v1') lane.snakePreviousObservation = rememberSnakeObservation(visible as SnakeVisibleObservation);
+      if (plan) lane.tetrisPlan = plan;
     });
     this.calls.set(runId, controller);
     this.ctx.waitUntil(this.infer(runId, pending, actions, { game: current.input.gameId, rules: adapter.rules, position, observedTick: pending.observedTick,
-      promptVersion: pending.promptVersion, runtime: { tickRate: ARCADE_TICK_RATE, minRequestIntervalMs: ARCADE_MIN_REQUEST_MS, lastResponseMs: run.lastDecision?.metrics?.elapsedMs ?? null }, recentInputs }, profile, controller));
+      promptVersion: pending.promptVersion, ...(stage ? { selectionPurpose: stage === 'target' ? 'update_goal_memory_only' : 'native_key_action', decisionStage: stage } : {}), runtime: { tickRate: ARCADE_TICK_RATE, minRequestIntervalMs: ARCADE_MIN_REQUEST_MS, lastResponseMs: run.lastDecision?.metrics?.elapsedMs ?? null }, recentInputs }, profile, controller, image));
   }
-  private async infer(runId: string, pending: Inflight, actions: ArcadeAction[], state: unknown, profile: NonNullable<SeatConfig['profile']>, controller: AbortController) {
+  private async infer(runId: string, pending: Inflight, actions: Action[], state: unknown, profile: NonNullable<SeatConfig['profile']>, controller: AbortController, image?: Uint8Array) {
     let canceledBeforeSend = false;
-    const beforeSend = () => {
+    let observationImage: ArcadeObservationImage | undefined;
+    const guard = () => {
       this.advanceToNow();
       const current = this.rec!, lane = current.runs.find(entry => entry.id === runId);
       const live = lane && { status: lane.state.status, requestId: lane.inflight?.requestId, pieceId: getArcadeGame(current.input.gameId).view(lane.state).pieceId };
-      if (!canSendObservedDecision(current, live, pending)) {
+      const scopeMatches = !pending.tetrisScope || (lane?.state.status === 'playing' && sameTetrisScope(pending.tetrisScope, tetrisGoalScope(getArcadeGame('tetris').observe(lane.state))));
+      if (!canSendObservedDecision(current, live, pending) || !scopeMatches) {
         canceledBeforeSend = true;
         throw new Error('Control became stale before model dispatch; no request was sent.');
       }
     };
+    const beforeSend = () => {
+      guard();
+      if (observationImage) {
+        pending.observationImage = observationImage;
+        this.change(next => { next.runs.find(run => run.id === runId)!.inflight!.observationImage = observationImage; }, false);
+      }
+    };
     try {
       await this.ctx.storage.sync();
+      let images: string[] | undefined;
+      if (image) {
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', image as BufferSource));
+        const header = new DataView(image.buffer, image.byteOffset, image.byteLength);
+        observationImage = { count: 1, sha256: [...digest].map(byte => byte.toString(16).padStart(2, '0')).join(''), width: header.getUint32(16), height: header.getUint32(20) };
+        images = [pngDataUrl(image)];
+      }
       const owner = this.rec!.ownerId;
       const credential = await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, owner).first<{ ciphertext: string }>();
       if (!credential) throw new Error('Credential was removed. Create another session with an available model.');
       const key = await decryptSecret(credential.ciphertext, this.env.ARENA_ENCRYPTION_KEY, owner);
       await assertBambooNodeAccess(this.env.DB, owner, profile);
-      beforeSend();
+      guard();
       // Reapply even for ready/paused/retry sessions frozen before this policy existed.
-      const instructions = pending.snakeHarnessVersion ? snakeHarnessInstructions(pending.snakeHarnessVersion) : arcadeDecisionInstructions(this.rec!.input.gameId);
-      const decision = await decide(realtimeProfile(profile), key, { state, actions, instructions }, controller.signal, beforeSend);
+      const instructions = pending.tetrisHarnessVersion ? tetrisHarnessInstructions(pending.tetrisHarnessVersion, pending.decisionStage === 'target' ? 'goal' : 'action') : pending.snakeHarnessVersion ? snakeHarnessInstructions(pending.snakeHarnessVersion) : arcadeDecisionInstructions(this.rec!.input.gameId);
+      const decision = await decide(realtimeProfile(profile), key, { state, actions, instructions, ...(images ? { images } : {}) }, controller.signal, beforeSend, localProviderOptions(this.env));
       const stillExists = await this.env.DB.prepare('SELECT ciphertext FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, owner).first<{ ciphertext: string }>();
       if (!stillExists) throw new Error('Credential was removed during the decision.');
       await assertBambooNodeKey(profile, stillExists.ciphertext, key, this.env.ARENA_ENCRYPTION_KEY, owner);
@@ -318,9 +357,9 @@ export class ArcadeSessionObject extends DurableObject<Env> {
         const active = !canceledBeforeSend && r.status === 'running' && r.generation === pending.generation;
         this.change(next => {
           const lane = next.runs.find(entry => entry.id === runId)!;
-          lane.lastDecision = { observedTick: pending.observedTick, outcome: active ? 'failed' : 'dropped' }; delete lane.inflight;
+          lane.lastDecision = { observedTick: pending.observedTick, ...(pending.decisionStage ? { settledTick: next.tick, ...tetrisDecisionMetadata(pending) } : {}), outcome: active ? 'failed' : 'dropped' }; delete lane.inflight;
           if (lane.snakePreviousObservation?.tick === pending.observedTick) lane.snakePreviousObservation.outcome = active ? 'failed' : 'dropped';
-          this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), outcome: active ? 'failed' : 'dropped', message: canceledBeforeSend ? 'Control became stale before model dispatch; no request was sent.' : active ? message(error) : 'Request settled after its control generation ended' });
+          this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), ...tetrisDecisionMetadata(pending), ...(pending.decisionStage ? { settledTick: next.tick } : {}), outcome: active ? 'failed' : 'dropped', message: canceledBeforeSend ? 'Control became stale before model dispatch; no request was sent.' : active ? message(error) : 'Request settled after its control generation ended' });
         });
         if (active) this.pause(message(error), true);
       }
@@ -332,26 +371,43 @@ export class ArcadeSessionObject extends DurableObject<Env> {
       if (this.rec && (this.rec.status !== 'running' || Date.now() - this.rec.lastSyncedAt >= WATCHDOG_MS)) await this.sync();
     }
   }
-  private settleDecision(runId: string, pending: Inflight, decision: DecisionResponse, actions: ArcadeAction[]) {
+  private settleDecision(runId: string, pending: Inflight, decision: DecisionResponse, actions: Action[]) {
     this.advanceToNow();
     const r = this.rec!, run = r.runs.find(entry => entry.id === runId)!;
     if (run.inflight?.requestId !== pending.requestId) return;
     const action = actions.find(entry => entry.id === decision.actionId);
     if (!action) throw new Error('The model selected an invalid input.');
     const adapter = getArcadeGame(r.input.gameId), view = adapter.view(run.state);
-    const valid = r.status === 'running' && r.generation === pending.generation && run.state.status === 'playing' && (pending.pieceId === undefined || pending.pieceId === view.pieceId) && adapter.candidates(run.state).some(entry => entry.id === action.id);
+    const targetDecision = pending.decisionStage === 'target';
+    const nativeAction = targetDecision ? undefined : adapter.candidates(run.state).find(entry => entry.id === action.id);
+    const scopeMatches = !pending.tetrisScope || (run.state.status === 'playing' && sameTetrisScope(pending.tetrisScope, tetrisGoalScope(adapter.observe(run.state))));
+    const valid = r.status === 'running' && r.generation === pending.generation && run.state.status === 'playing' && (pending.pieceId === undefined || pending.pieceId === view.pieceId) && scopeMatches && (targetDecision || !!nativeAction);
     this.change(next => {
       const lane = next.runs.find(entry => entry.id === runId)!;
       delete lane.inflight;
-      lane.lastDecision = { observedTick: pending.observedTick, ...(valid ? { appliedTick: next.tick + 1 } : {}), outcome: valid ? 'applied' : 'dropped', metrics: decision.metrics, ...(decision.reasoning ? { reasoning: decision.reasoning } : {}) };
+      const applied = valid && !targetDecision ? { appliedTick: next.tick + 1 } : {};
       if (lane.snakePreviousObservation?.tick === pending.observedTick) Object.assign(lane.snakePreviousObservation, { actionId: action.id, outcome: valid ? 'applied' : 'dropped', ...(valid ? { appliedTick: next.tick + 1 } : {}) });
       if (valid) {
         this.frame(next);
-        lane.state = adapter.input(lane.state, action.input);
-        lane.observeAfterTick = next.tick + 1;
+        if (targetDecision) {
+          const plan = lane.tetrisPlan!;
+          plan.target = applyTetrisGoalChoice(plan.target, action.id);
+          if (action.id !== 'keep') plan.targetCreatedAt = plan.target ? plan.appliedKeyActions : null;
+          plan.lastPlannedKeyActions = plan.appliedKeyActions;
+        } else {
+          lane.state = adapter.input(lane.state, nativeAction!.input);
+          lane.observeAfterTick = next.tick + 1;
+          if (pending.tetrisScope && lane.tetrisPlan) {
+            lane.tetrisPlan.appliedKeyActions++;
+            lane.tetrisPlan.recentActions.push({ actionId: action.id, observedTick: pending.observedTick, appliedTick: next.tick + 1, beforeLeftmostColumn: pending.beforePose!.leftmostColumn, beforeRotation: pending.beforePose!.rotation, targetAtAction: lane.tetrisPlan.target && { ...lane.tetrisPlan.target }, outcome: 'applied' });
+            lane.tetrisPlan.recentActions = lane.tetrisPlan.recentActions.slice(-4);
+          }
+        }
       }
-      this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), ...(valid ? { appliedTick: next.tick + 1 } : {}), actionId: action.id, outcome: valid ? 'applied' : 'dropped', metrics: decision.metrics, ...(decision.reasoning ? { reasoning: decision.reasoning } : {}) });
-      if (valid) this.event(next, 'input', { runId, requestId: pending.requestId, input: action.input, appliedTick: next.tick + 1 });
+      const tetris = pending.decisionStage ? { ...tetrisDecisionMetadata(pending), settledTick: next.tick, ...(valid && pending.tetrisScope ? { tetrisGoal: this.currentTetrisGoal(lane) } : {}) } : {};
+      lane.lastDecision = { observedTick: pending.observedTick, ...applied, ...tetris, outcome: valid ? 'applied' : 'dropped', metrics: decision.metrics, ...(decision.reasoning ? { reasoning: decision.reasoning } : {}) };
+      this.event(next, 'decision', { runId, requestId: pending.requestId, observedTick: pending.observedTick, promptVersion: pending.promptVersion ?? LEGACY_PROMPT_VERSION, ...(pending.snakeHarnessVersion ? { snakeHarnessVersion: pending.snakeHarnessVersion } : {}), ...tetris, ...applied, actionId: action.id, outcome: valid ? 'applied' : 'dropped', metrics: decision.metrics, ...(decision.reasoning ? { reasoning: decision.reasoning } : {}) });
+      if (valid && nativeAction) this.event(next, 'input', { runId, requestId: pending.requestId, input: nativeAction.input, appliedTick: next.tick + 1 });
       if (valid) this.frame(next);
     });
   }
@@ -412,16 +468,21 @@ export class ArcadeSessionObject extends DurableObject<Env> {
     if (input.config?.level !== undefined && ![1, 2, 3].includes(input.config.level)) throw new Error('Invalid level');
     if (input.gameId !== 'snake' && input.config?.snakeHarnessVersion !== undefined) throw new Error('Snake harness is only available for snake');
     const harness = input.gameId === 'snake' ? snakeHarnessVersion(input.config?.snakeHarnessVersion) : undefined;
+    if (input.gameId !== 'tetris' && input.config?.tetrisHarnessVersion !== undefined) throw new Error('Tetris harness is only available for tetris');
+    // Freeze the current default only at creation; missing versions in persisted
+    // records still follow the original baseline path during launch/replay.
+    const tetrisHarness = input.gameId === 'tetris' ? tetrisHarnessVersion(input.config?.tetrisHarnessVersion === undefined ? TETRIS_V8 : input.config.tetrisHarnessVersion) : undefined;
     for (const controller of input.controllers) if (controller.kind === 'ai') {
       const profile = controller.profile;
       if (!profile || profile.ownerId !== ownerId) throw new Error('Invalid model owner');
+      if (tetrisHarness === TETRIS_V8 && !supportsDecisionImages(profile)) throw new Error('Tetris V8 requires a supported image-capable Decision model');
       if (!await this.env.DB.prepare('SELECT id FROM arena_credentials WHERE id=? AND owner_id=? AND deleted_at IS NULL').bind(profile.credentialId, ownerId).first()) throw new Error('Credential not found');
       await assertBambooNodeAccess(this.env.DB, ownerId, profile);
     }
     if (this.rec) { this.require(ownerId); throw new Error('Arcade session already exists'); }
     const adapter = getArcadeGame(input.gameId), seed = input.seed ?? crypto.randomUUID(), now = Date.now();
-    const safeInput: CreateArcadeInput = { gameId: input.gameId, mode: input.mode, config: { ...(input.config?.level ? { level: input.config.level } : {}), ...(harness ? { snakeHarnessVersion: harness } : {}) }, controllers: input.controllers.map(controller => controller.kind === 'ai' ? { kind: 'ai', profile: realtimeProfile(controller.profile!) } : { kind: 'human' }) };
-    this.rec = { schemaVersion: 2, id, ownerId, input: safeInput, seed, rulesVersion: adapter.rulesVersion, promptVersion: harness ? SNAKE_HARNESS_PROTOCOL : ARCADE_PROMPT_VERSION, status: 'ready', version: 0, generation: 0, tick: 0,
+    const safeInput: CreateArcadeInput = { gameId: input.gameId, mode: input.mode, config: { ...(input.config?.level ? { level: input.config.level } : {}), ...(harness ? { snakeHarnessVersion: harness } : {}), ...(tetrisHarness ? { tetrisHarnessVersion: tetrisHarness } : {}) }, controllers: input.controllers.map(controller => controller.kind === 'ai' ? { kind: 'ai', profile: realtimeProfile(controller.profile!) } : { kind: 'human' }) };
+    this.rec = { schemaVersion: 2, id, ownerId, input: safeInput, seed, rulesVersion: adapter.rulesVersion, promptVersion: tetrisHarness === TETRIS_V8 ? TETRIS_HARNESS_PROTOCOL : harness ? SNAKE_HARNESS_PROTOCOL : ARCADE_PROMPT_VERSION, status: 'ready', version: 0, generation: 0, tick: 0,
       runs: safeInput.controllers.map((controller, index) => ({ id: `run-${index}`, controller, state: adapter.create(safeInput.config, seed), calls: 0, lastRequestedAt: 0 })),
       eventSeq: 0, createdAt: now, updatedAt: now, anchorWall: now, anchorTick: 0, lastBatchWall: now, needsRetry: false,
       leaseRenewedAt: 0, needsSync: true, lastSyncedAt: 0, syncFailures: 0 };

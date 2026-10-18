@@ -2,7 +2,7 @@
 
 The project uses two Workers, D1, private R2 and SQLite Durable Objects. Production setup is explicit; local setup never provisions cloud resources.
 
-The planned public origin is `https://arena.startlux-desicion.com`. Bind that hostname to the main Worker when deploying, build with that `VITE_APP_URL`, and set `AUTH_URL` and `AUTH_TRUSTED_ORIGINS` to the same HTTPS origin. The [production BambooNode registration checklist](bamboonode-production-client-registration.json) contains its exact OAuth callback. This is a deployment target only; DNS, domain binding and client registration have not been performed.
+The public origin is `https://arena.startlux-decision.com`. It currently uses a [local Cloudflare Tunnel](local-tunnel.md), not a deployed main Worker. Build with that `VITE_APP_URL`, and set `AUTH_URL` and `AUTH_TRUSTED_ORIGINS` to the same HTTPS origin when deploying Workers later. The [production BambooNode registration checklist](bamboonode-production-client-registration.json) contains the corrected OAuth callback; its upstream registration still needs correction.
 
 1. Create a D1 database and an R2 bucket in your Cloudflare account. Keep the bucket private. Put the database ID and bucket name in both Worker configs. Replace the main app URL with the real HTTPS origin.
 2. Set `AUTH_SECRET`, `CONFIG_ENCRYPTION_KEY` and `ARENA_ENCRYPTION_KEY` as main Worker secrets. Set the **same** `ARENA_ENCRYPTION_KEY` on the runner. Use fresh random secrets and keep a backup of the vault key. Do not deploy the local `.dev.vars` files or `LOCAL_DEV=true`.

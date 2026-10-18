@@ -30,7 +30,7 @@ export interface PublicSeatConfig { kind: 'human' | 'ai'; profile?: PublicModelP
 export interface DecisionMetrics { elapsedMs: number; actualModel?: string; confidence?: number; probabilities?: Record<string, number>; usage?: Record<string, number>; thoughtUsed?: boolean }
 /** Provider-returned text for private match views only; never a public replay field. */
 export interface DecisionReasoning { text: string; truncated: boolean }
-export interface DecisionRequest { state: unknown; actions: Action[]; instructions: string }
+export interface DecisionRequest { state: unknown; actions: Action[]; instructions: string; /** Optional bounded, inline PNG observations; never remote URLs. */ images?: string[] }
 export interface DecisionResponse { actionId: string; metrics: DecisionMetrics; reasoning?: DecisionReasoning }
 export interface ProviderAdapter { decide(profile: ModelProfile, key: string, request: DecisionRequest, signal?: AbortSignal): Promise<DecisionResponse> }
 export interface MatchEvent { seq: number; type: 'created' | 'action' | 'status' | 'error'; at: number; seat?: Seat; action?: Action; metrics?: DecisionMetrics; reasoning?: DecisionReasoning; message?: string; view?: GameView }

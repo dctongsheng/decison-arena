@@ -105,12 +105,15 @@ const arcadeScore = z.object({
 });
 const arcadeGameId = z.enum(['snake', 'tetris', 'platformer']);
 const snakeHarnessVersion = z.enum(['snake-harness-a-v1', 'snake-harness-b-v1', 'snake-harness-c-v1']);
+const tetrisHarnessVersion = z.enum(['tetris-harness-baseline-v1', 'tetris-harness-v8-realtime-v1']);
+const rotation = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
+const tetrisGoal = z.object({ pieceId: z.number().int().nonnegative(), leftmostColumn: z.number().int().min(0).max(9), rotation });
 const arcadeView = z.object({
   gameId: arcadeGameId, tick, status: z.enum(['playing', 'finished']), score: arcadeScore,
   width: finite, height: finite, currentButtons: buttons, reason: z.string().max(500).optional(),
   cells: z.array(z.number().int().min(0).max(7)).max(400).optional(),
   snake: z.array(point).max(400).optional(), food: point.nullable().optional(),
-  active: z.object({ type: z.string().max(8), cells: z.array(point).max(4) }).optional(),
+  active: z.object({ type: z.string().max(8), cells: z.array(point).max(4), rotation: rotation.optional() }).optional(),
   next: z.array(z.string().max(8)).max(5).optional(), hold: z.string().max(8).nullable().optional(), pieceId: z.number().int().optional(),
   player: rect.extend({ vx: finite, vy: finite, onGround: z.boolean() }).optional(),
   platforms: z.array(rect).max(1000).optional(), hazards: z.array(rect).max(1000).optional(),
@@ -123,6 +126,7 @@ const arcadeReplaySchema = z.object({
   config: z.object({
     level: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
     snakeHarnessVersion: snakeHarnessVersion.optional(),
+    tetrisHarnessVersion: tetrisHarnessVersion.optional(),
   }),
   controllers: z.array(publicSeat).min(1).max(2),
   runIds: z.array(z.string()).min(1).max(2),
@@ -133,13 +137,23 @@ const arcadeReplaySchema = z.object({
     seq: z.number().int().nonnegative(), type: z.enum(['created', 'input', 'decision', 'status', 'ended', 'error']),
     tick, at: finite, runId: z.string().optional(), input: input.optional(), release: z.literal(true).optional(), actionId: z.string().max(160).optional(),
     observedTick: tick.optional(), appliedTick: tick.optional(), requestId: z.string().optional(),
-    promptVersion: z.string().regex(/^decision-arena-arcade-v[1-9][0-9]*$/).max(64).optional(),
+    promptVersion: z.union([z.string().regex(/^decision-arena-arcade-v[1-9][0-9]*$/).max(64), z.literal('tetris-harness-v8-realtime-v1')]).optional(),
     snakeHarnessVersion: snakeHarnessVersion.optional(),
+    tetrisHarnessVersion: tetrisHarnessVersion.optional(),
+    decisionStage: z.enum(['target', 'key']).optional(),
+    settledTick: tick.optional(), pieceId: z.number().int().nonnegative().optional(), tetrisGoal: tetrisGoal.nullable().optional(),
+    observationImage: z.object({ count: z.literal(1), sha256: z.string().regex(/^[a-f0-9]{64}$/), width: z.number().int().min(1).max(2048), height: z.number().int().min(1).max(2048) }).optional(),
     outcome: z.enum(['applied', 'dropped', 'failed', 'unknown']).optional(), metrics: metrics.optional(),
   })).max(20000),
 }).superRefine((value, ctx) => {
   if (value.gameId !== 'snake' && (value.config.snakeHarnessVersion !== undefined || value.events.some(event => event.snakeHarnessVersion !== undefined)))
     ctx.addIssue({ code: 'custom', message: 'Snake harness versions are only available for snake replays.' });
+  if (value.gameId !== 'tetris' && (value.config.tetrisHarnessVersion !== undefined || value.events.some(event => event.tetrisHarnessVersion !== undefined)))
+    ctx.addIssue({ code: 'custom', message: 'Tetris harness versions are only available for tetris replays.' });
+  if (value.gameId !== 'tetris' && value.events.some(event => event.decisionStage !== undefined || event.tetrisGoal !== undefined || event.observationImage !== undefined))
+    ctx.addIssue({ code: 'custom', message: 'Tetris planning metadata is only available for tetris replays.' });
+  if (value.events.some(event => event.decisionStage === 'target' && (event.input !== undefined || event.appliedTick !== undefined)))
+    ctx.addIssue({ code: 'custom', message: 'Target decisions cannot execute physical inputs.' });
   const tracks = value.mode === 'practice' || value.mode === 'ai-solo' ? 1 : 2;
   if (value.controllers.length !== tracks || value.runIds.length !== tracks || new Set(value.runIds).size !== tracks || value.result.scores.length !== tracks ||
       (value.mode === 'ai-solo' && (value.controllers[0]?.kind !== 'ai' || value.result.winner !== null)) ||

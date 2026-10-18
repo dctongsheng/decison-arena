@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { validateEndpoint } from '@decision-arena/providers';
 import { createClient, type Client } from '@libsql/client';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
@@ -113,10 +114,21 @@ beforeEach(async () => {
             actionId: 'ready',
             metrics: { elapsedMs: 12, actualModel: 'test-model' },
           });
-        if (new URL(request.url).pathname === '/validate-endpoint')
-          return Response.json({
-            endpoint: (await request.clone().json()).endpoint,
-          });
+        if (new URL(request.url).pathname === '/validate-endpoint') {
+          const body = await request.clone().json();
+          try {
+            return Response.json({
+              endpoint: await validateEndpoint(body.endpoint, body.provider, {
+                resolve: false,
+              }),
+            });
+          } catch {
+            return Response.json(
+              { error: 'Invalid custom endpoint.' },
+              { status: 400 }
+            );
+          }
+        }
         return Response.json({ id: 'match-created', status: 'ready' });
       },
     },
@@ -243,16 +255,93 @@ describe('personal credential vault and model profiles', () => {
     expect(JSON.stringify(result)).not.toContain(fakeKey);
   });
 
-  it('rejects private custom endpoints before any provider call', async () => {
-    await expect(
-      arena.saveProfile('owner-a', {
-        ...profile,
-        provider: 'custom-openrouter',
+  it.each(['save', 'test'] as const)(
+    'lets the runner reject private endpoints before %s without trusting a body allowlist',
+    async (operation) => {
+      const run = operation === 'save' ? arena.saveProfile : arena.testProfile;
+      await expect(
+        run('owner-a', {
+          ...profile,
+          provider: 'custom-openrouter',
+          endpoint: 'http://127.0.0.1:8090',
+          localEndpoints: ['http://127.0.0.1:8090'],
+        })
+      ).rejects.toBeInstanceOf(ArenaError);
+      expect(runnerCalls).toHaveLength(1);
+      expect(new URL(runnerCalls[0].url).pathname).toBe('/validate-endpoint');
+      expect(await runnerCalls[0].clone().json()).toEqual({
         endpoint: 'http://127.0.0.1:8090',
-      })
-    ).rejects.toBeInstanceOf(ArenaError);
-    expect(await database.select().from(arenaCredential)).toHaveLength(0);
-  });
+        provider: 'custom-openrouter',
+      });
+      expect(await database.select().from(arenaCredential)).toHaveLength(0);
+      expect(await database.select().from(arenaProfile)).toHaveLength(0);
+    }
+  );
+
+  it.each(['save', 'test'] as const)(
+    'uses an owner-authenticated runner-approved local endpoint for %s',
+    async (operation) => {
+      const endpoint = 'http://127.0.0.1:18080/v1/systemone';
+      const submittedEndpoint = 'http://127.0.0.1:18080/v1/./systemone';
+      const bindings = globals.__CF_ENV__ as {
+        MATCH_SERVICE: { fetch(request: Request): Promise<Response> };
+      };
+      const originalFetch = bindings.MATCH_SERVICE.fetch;
+      bindings.MATCH_SERVICE.fetch = async (request) => {
+        if (new URL(request.url).pathname !== '/validate-endpoint')
+          return originalFetch(request);
+        runnerCalls.push(request);
+        return Response.json({ endpoint });
+      };
+      const input = {
+        ...profile,
+        provider: 'custom-systemone',
+        endpoint: submittedEndpoint,
+        localEndpoints: ['http://attacker.invalid'],
+      };
+      if (operation === 'save') {
+        const saved = await arena.saveProfile('owner-a', input);
+        expect(saved.endpoint).toBe(endpoint);
+        const [row] = await database.select().from(arenaProfile);
+        expect(row.endpoint).toBe(endpoint);
+        expect(runnerCalls).toHaveLength(1);
+      } else {
+        await arena.testProfile('owner-a', input);
+        expect(runnerCalls).toHaveLength(2);
+        expect(new URL(runnerCalls[1].url).pathname).toBe('/provider-test');
+        const request = await runnerCalls[1].clone().json();
+        expect(request.profile.endpoint).toBe(endpoint);
+        expect(request.profile).not.toHaveProperty('localEndpoints');
+        expect(await database.select().from(arenaCredential)).toHaveLength(0);
+        expect(await database.select().from(arenaProfile)).toHaveLength(0);
+      }
+      expect(
+        runnerCalls.every(
+          (request) => request.headers.get('X-Arena-Owner') === 'owner-a'
+        )
+      ).toBe(true);
+      expect(await runnerCalls[0].clone().json()).toEqual({
+        endpoint: submittedEndpoint,
+        provider: 'custom-systemone',
+      });
+    }
+  );
+
+  it.each([
+    ['openrouter', 'https://openrouter.ai/api/alpha/decisions'],
+    ['systemone', 'https://startlux-decision.com/v1/systemone'],
+  ])(
+    'keeps %s fixed without asking the custom endpoint validator',
+    async (provider, endpoint) => {
+      const saved = await arena.saveProfile('owner-a', {
+        ...profile,
+        provider,
+        endpoint: 'http://127.0.0.1:18080/v1/systemone',
+      });
+      expect(saved.endpoint).toBe(endpoint);
+      expect(runnerCalls).toHaveLength(0);
+    }
+  );
 
   it('validates custom DNS through the owner-authenticated runner before saving', async () => {
     const input = {

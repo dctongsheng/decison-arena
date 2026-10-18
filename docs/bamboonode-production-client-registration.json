@@ -3,7 +3,7 @@
   "client_name": "Decision Arena",
   "client_type": "external",
   "redirect_uris": [
-    "https://arena.startlux-desicion.com/api/auth/oauth2/callback/bamboonode"
+    "https://arena.startlux-decision.com/api/auth/oauth2/callback/bamboonode"
   ],
   "grant_types": ["authorization_code", "refresh_token"],
   "scopes": ["openid", "profile", "email", "quota", "model_gateway"],

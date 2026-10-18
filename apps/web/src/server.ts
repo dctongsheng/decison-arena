@@ -1,6 +1,7 @@
 import handler from '@tanstack/react-start/server-entry';
 
 import { getCookieFromHeader } from './lib/cookie';
+import { normalizeDevPublicRequest } from './lib/dev-public-origin';
 import { paraglideMiddleware } from './paraglide/server.js';
 
 // On Cloudflare Workers, stash the binding env (D1, ASSETS, …) on globalThis
@@ -28,6 +29,10 @@ function ensureCloudflareEnv(): Promise<void> {
 // getLocale() resolves per-request (AsyncLocalStorage) during SSR.
 export default {
   async fetch(req: Request): Promise<Response> {
+    req = normalizeDevPublicRequest(req, {
+      development: import.meta.env.DEV,
+      publicOrigin: process.env.ARENA_PUBLIC_ORIGIN,
+    });
     await ensureCloudflareEnv();
     const response = await paraglideMiddleware(req, () => handler.fetch(req));
     const utmSource = new URL(req.url).searchParams.get('utm_source');
