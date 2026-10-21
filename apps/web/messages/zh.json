@@ -915,6 +915,8 @@
   "arena.nav.history": "我的记录",
   "arena.nav.models": "模型连接",
   "arena.nav.label": "主导航",
+  "arena.nav.github": "GitHub",
+  "arena.nav.github_label": "GitHub 开源仓库（在新标签页打开）",
   "arena.language": "切换语言",
   "arena.signin": "登录 / 注册",
   "arena.signout": "退出登录",

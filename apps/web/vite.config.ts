@@ -127,6 +127,6 @@ export default defineConfig({
       srcDirectory: 'src',
     }),
     viteReact(),
-    nitro(),
+    nitro(process.env.NITRO_PRESET === 'node_middleware' ? { serveStatic: true } : {}),
   ],
 });

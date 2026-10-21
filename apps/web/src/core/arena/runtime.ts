@@ -1,3 +1,5 @@
+import { isLocalProduction } from './local-production';
+
 /** Server-only bindings. The main entry sets __CF_ENV__ on Workers. */
 export interface ArenaBindings {
   MATCH_SERVICE?: { fetch(request: Request): Promise<Response> };
@@ -84,25 +86,27 @@ export async function runnerFetch(
     return binding.fetch(
       new Request(`https://match.internal${path}`, { ...init, headers })
     );
-  if (process.env.NODE_ENV === 'production')
+  if (process.env.NODE_ENV === 'production' && !isLocalProduction())
     throw new ArenaError('Match service is not configured.', 503);
   const address = new URL(
     process.env.ARENA_RUNNER_URL || 'http://127.0.0.1:5092'
   );
   if (
     address.protocol !== 'http:' ||
-    !['127.0.0.1', 'localhost', '[::1]'].includes(address.hostname)
+    !['127.0.0.1', 'localhost', '[::1]'].includes(address.hostname) ||
+    address.username || address.password || address.pathname !== '/' ||
+    address.search || address.hash
   ) {
     throw new ArenaError(
-      'The development runner must use a loopback URL.',
+      'The local runner must use a loopback origin.',
       503
     );
   }
   const internalSecret = process.env.ARENA_INTERNAL_SECRET;
   if (!internalSecret)
-    throw new ArenaError('Development runner secret is not configured.', 503);
+    throw new ArenaError('Local runner secret is not configured.', 503);
   headers.set('X-Arena-Internal', internalSecret);
-  return fetch(new URL(path, address), { ...init, headers });
+  return fetch(new URL(path, address), { ...init, headers, redirect: 'manual' });
 }
 
 export async function runnerJson<T>(

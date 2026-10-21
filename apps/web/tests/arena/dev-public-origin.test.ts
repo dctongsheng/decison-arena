@@ -53,9 +53,9 @@ function incoming({
   return request;
 }
 
-function normalize(request: IncomingMessage, development = true) {
+function normalize(request: IncomingMessage, development = true, localProduction = false) {
   stampDevPublicOrigin(request, publicOrigin);
-  return normalizeDevPublicRequest(new NodeRequest({ req: request }), { development, publicOrigin });
+  return normalizeDevPublicRequest(new NodeRequest({ req: request }), { development, localProduction, publicOrigin });
 }
 
 describe('explicit loopback HTTPS tunnel origin', () => {
@@ -145,6 +145,44 @@ describe('explicit loopback HTTPS tunnel origin', () => {
     const production = normalize(incoming(), false);
     expect(production.url).toBe('http://arena.startlux-decision.com/api/arena/models');
     expect(production.headers.has(DEV_PUBLIC_ORIGIN_HEADER)).toBe(false);
+  });
+
+  it('normalizes explicitly enabled Node production only after the trusted wrapper stamps it', () => {
+    const request = normalize(incoming(), false, true);
+    expect(request.url).toBe(`${publicOrigin}/api/arena/models`);
+    expect(request.headers.has(DEV_PUBLIC_ORIGIN_HEADER)).toBe(false);
+    expect(() => assertSameOrigin(request)).not.toThrow();
+    const unstamped = normalizeDevPublicRequest(new NodeRequest({ req: incoming() }), {
+      development: false, localProduction: true, publicOrigin,
+    });
+    expect(unstamped.url).toBe('http://arena.startlux-decision.com/api/arena/models');
+    expect(() => assertSameOrigin(unstamped)).toThrow('same-origin');
+  });
+
+  it.each([
+    { address: '192.0.2.1' },
+    { address: '127.0.0.2' },
+    { host: 'attacker.example' },
+    { host: 'arena.startlux-decision.com:5091' },
+    { proto: '' },
+    { proto: 'http' },
+    { proto: 'https, http' },
+  ])('keeps the same trust tuple in explicitly enabled Node production: %j', options => {
+    const request = incoming(options);
+    request.headers[DEV_PUBLIC_ORIGIN_HEADER] = publicOrigin;
+    request.rawHeaders.push(DEV_PUBLIC_ORIGIN_HEADER, publicOrigin);
+    const result = normalize(request, false, true);
+    expect(new URL(result.url).protocol).toBe('http:');
+    expect(result.headers.has(DEV_PUBLIC_ORIGIN_HEADER)).toBe(false);
+  });
+
+  it('still rejects cross-origin mutations in explicitly enabled Node production', () => {
+    expect(() => assertSameOrigin(normalize(incoming({ origin: 'https://attacker.example' }), false, true)))
+      .toThrow('same-origin');
+    const request = incoming();
+    request.headers['sec-fetch-site'] = 'cross-site';
+    request.rawHeaders.push('Sec-Fetch-Site', 'cross-site');
+    expect(() => assertSameOrigin(normalize(request, false, true))).toThrow('Cross-site');
   });
 
   it('preserves a real IncomingMessage POST body and authentication headers without consuming it', async () => {

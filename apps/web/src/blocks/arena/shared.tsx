@@ -12,6 +12,7 @@ import {
   ArrowRight,
   ChevronRight,
   CircleHelp,
+  Github,
   Grid2X2,
   History,
   KeyRound,
@@ -188,6 +189,16 @@ export function ArenaShell({ children }: { children: ReactNode }) {
                 <span>{label}</span>
               </Link>
             ))}
+            <a
+              href="https://github.com/dctongsheng/decison-arena"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={m['arena.nav.github_label']()}
+              title={m['arena.nav.github_label']()}
+            >
+              <Github size={16} aria-hidden="true" />
+              <span>{m['arena.nav.github']()}</span>
+            </a>
           </nav>
           <div className="arena-user">
             <button

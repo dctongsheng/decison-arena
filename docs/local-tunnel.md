@@ -1,6 +1,8 @@
 # 本地 Cloudflare Tunnel
 
-当前公开地址为 **https://arena.startlux-decision.com/zh**（`decision`）。网站仍运行在本机，未部署 Workers。电脑、网络和 `pnpm dev` 必须持续运行。
+当前公开地址为 **https://arena.startlux-decision.com/zh**（`decision`）。网站仍运行在本机，未部署 Workers。电脑和网络必须持续运行。
+
+生产构建的启动方法见 [local-production.md](./local-production.md)。下文的 Vite 启动方式仍用于开发；两种服务不能同时占用 5091/5092/5094。
 
 ## 本机映射与运行
 
@@ -45,26 +47,19 @@ AUTH_TRUSTED_ORIGINS=http://127.0.0.1:5091,http://localhost:5091,https://arena.s
 
 开发适配只允许明确配置的公网 Host。仅来自 loopback、精确 Host 和单值 `X-Forwarded-Proto: https` 的请求可归一化为 HTTPS，原同源检查保持不变。公网游戏使用同源 WSS，本地仍用 5094；Bridge 验证 Cookie 与实际 owner。Vite 拒绝读取 `.env`、数据库、私有 artifacts、`.wrangler`、`.git` 及服务器构建产物。
 
-## BambooNode 登录尚需修正登记
+## BambooNode 登录登记
 
-2026-10-17 的匿名 `client-info` 对照检查结果：
+**2026-10-21 已验证：** 当前安装共用 `decision-arena-local` 客户端，本地和公网回调均通过完整参数（包括 state 和 S256 challenge）预检。Chrome 完成真实授权后返回公网 Arena，账户模型目录自动加载 StartLux、Jev 1.13 和 Jev 1.14。未发起收费模型调用。
 
-| Client | 回调地址 | 五 scopes | 结果 |
-| --- | --- | --- | --- |
-| `decision-arena-local` | `http://127.0.0.1:5091/api/auth/oauth2/callback/bamboonode` | 完整 | 200 / 允许 |
-| `decision-arena-local` | 正确公网域名 | 完整 | 400 / 拒绝 |
-| `decision-arena` | 原拼错的公网域名 | 完整 | 200 / 允许 |
-| `decision-arena` | 正确公网域名 | 完整 | 400 / 拒绝 |
-
-正确公网域名即使只请求身份 scopes 仍被拒绝。Tunnel 和 DNS 无法代替 OAuth 客户端登记。
-
-请 BambooNode 维护者更新 `decision-arena` 的精确回调为：
+公网精确回调为：
 
 ```text
 https://arena.startlux-decision.com/api/auth/oauth2/callback/bamboonode
 ```
 
-保留 `openid profile email quota model_gateway`、PKCE S256、模型授权及刷新 token 能力。然后将生产 client 对应的 secret 安全写入本地忽略文件（不要发在聊天、PR 或仓库中），与 `BAMBOONODE_CLIENT_ID=decision-arena` 配套，再重启并完成浏览器授权测试。当前 `.env.development` 仍保留原 `decision-arena-local` 凭证，不能仅把 client_id 改成生产 ID 而沿用另一客户端的 secret。此次未声称公网 OAuth 回调已成功。
+保留 `openid profile email quota model_gateway`、PKCE S256、模型授权及刷新 token 能力。client ID 与 secret 必须属于同一登记，不要把 secret 发在聊天、PR 或仓库中。其他部署者须申请自己的客户端，并登记自己的精确回调。
+
+此前公网登录 400 的原因是该客户端只允许本地回调。BambooNode 在实际主数据库的 `oauth2_clients.redirect_uris` 中追加正确公网地址、保留旧回调后解决。仅修改 Tunnel、DNS 或 Arena 的 `AUTH_URL` 不能代替服务端登记。若再遇到类似问题，应对照实际请求的 client ID、回调和权限，并检查 `.dev` 服务是否连接了正确主库；不要关闭 PKCE 或使用通配符绕过校验。
 
 ## 验证与访问诊断
 

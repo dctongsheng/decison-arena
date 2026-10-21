@@ -915,6 +915,8 @@
   "arena.nav.history": "My matches",
   "arena.nav.models": "Models",
   "arena.nav.label": "Main navigation",
+  "arena.nav.github": "GitHub",
+  "arena.nav.github_label": "GitHub source repository (opens in a new tab)",
   "arena.language": "Change language",
   "arena.signin": "Sign in",
   "arena.signout": "Sign out",

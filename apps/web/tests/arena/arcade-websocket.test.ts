@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocked = vi.hoisted(() => ({ createServer: vi.fn(), request: vi.fn() }));
 vi.mock('node:http', () => ({ createServer: mocked.createServer, request: mocked.request }));
 
-import { arcadeDevAllowedOrigins, arcadeWebSocketBridge } from '../../dev/arcade-websocket';
+import { arcadeDevAllowedOrigins, arcadeWebSocketBridge, startArenaSocketBridge } from '../../dev/arcade-websocket';
 
 describe('explicit development WebSocket origins', () => {
   it('keeps local origins and adds only configured exact public HTTPS origins', () => {
@@ -32,6 +32,43 @@ describe('explicit development WebSocket origins', () => {
   });
   it('has no public-origin default when configuration is missing', () => {
     expect([...arcadeDevAllowedOrigins(5091, {})]).toEqual(['http://127.0.0.1:5091', 'http://localhost:5091']);
+  });
+});
+
+describe('shared production socket entry (mock transports only)', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it('uses the same authenticated handler for a same-origin server and the independent Tunnel listener', async () => {
+    vi.clearAllMocks();
+    const listener = Object.assign(new EventEmitter(), { listen: vi.fn(), close: vi.fn((done: () => void) => done()) });
+    mocked.createServer.mockReturnValue(listener);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ user: { id: 'actual-session-owner' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+    mocked.request.mockImplementation(() => Object.assign(new EventEmitter(), { setTimeout: vi.fn(), end: vi.fn(), destroy: vi.fn() }));
+    const bridge = startArenaSocketBridge({
+      webPort: 5091, deferListen: true,
+      env: { ARENA_INTERNAL_SECRET: 'fixture-only-secret', VITE_APP_URL: 'https://arena.startlux-decision.com' },
+      acceptRequest: req => req.headers.host === 'arena.startlux-decision.com',
+    });
+    const makeSocket = () => Object.assign(new EventEmitter(), { destroyed: false, destroy: vi.fn(), end: vi.fn() });
+    const incoming = {
+      url: '/api/arena/arcade-sessions/fixture/socket?since=3',
+      headers: { host: 'arena.startlux-decision.com', origin: 'https://arena.startlux-decision.com', cookie: 'fixture-cookie', 'x-arena-owner': 'forged-owner' },
+    };
+    bridge.upgrade(incoming as never, makeSocket() as never, Buffer.alloc(0));
+    listener.emit('upgrade', incoming, makeSocket(), Buffer.alloc(0));
+    await vi.waitFor(() => expect(mocked.request).toHaveBeenCalledTimes(2));
+    for (const [, options] of mocked.request.mock.calls) {
+      expect(options.headers['X-Arena-Owner']).toBe('actual-session-owner');
+      expect(options.headers.Cookie).toBeUndefined();
+    }
+    const rejected = makeSocket();
+    bridge.upgrade({ ...incoming, headers: { ...incoming.headers, host: 'attacker.example' } } as never, rejected as never, Buffer.alloc(0));
+    expect(rejected.end).toHaveBeenCalledWith(expect.stringContaining('403 Rejected'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    bridge.listen();
+    expect(listener.listen).toHaveBeenCalledWith(5094, '127.0.0.1');
+    await bridge.close();
+    expect(listener.close).toHaveBeenCalledOnce();
   });
 });
 

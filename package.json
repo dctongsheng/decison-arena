@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:cloudflare": "node scripts/dev-cloudflare.mjs",
+    "build:local-production": "node scripts/build-local-production.mjs",
+    "start:local-production": "node scripts/start-local-production.mjs",
     "build": "pnpm --filter @decision-arena/web build && pnpm --filter @decision-arena/runner build",
     "build:cloudflare": "pnpm --filter @decision-arena/web cf:build && pnpm --filter @decision-arena/runner build",
     "test": "vitest run",
